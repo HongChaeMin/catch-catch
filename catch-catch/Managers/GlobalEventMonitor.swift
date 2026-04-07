@@ -1,7 +1,9 @@
 import AppKit
 import Combine
+import IOKit.hid
 
 class GlobalEventMonitor: ObservableObject {
+    @Published private(set) var hasInputMonitoringPermission: Bool = false
     private var keyDownMonitor: Any?
     private var keyUpMonitor: Any?
     private var mouseDownMonitor: Any?
@@ -18,10 +20,32 @@ class GlobalEventMonitor: ObservableObject {
 
     var isRunning: Bool = false
 
+    // MARK: - Permission check
+
+    func checkAndRequestPermission() {
+        let access = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)
+        if access == kIOHIDAccessTypeGranted {
+            hasInputMonitoringPermission = true
+        } else {
+            hasInputMonitoringPermission = false
+            IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+        }
+    }
+
+    static func openInputMonitoringSettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!
+        NSWorkspace.shared.open(url)
+    }
+
+    // MARK: - Start / stop
+
     func start() {
+        checkAndRequestPermission()
         guard !isRunning else { return }
         isRunning = true
 
+        // Keyboard events require Input Monitoring permission.
+        // Mouse events work without it — so the cat reacts to clicks even without permission.
         keyDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] _ in
             DispatchQueue.main.async { self?.onActivate?() }
         }

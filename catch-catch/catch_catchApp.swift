@@ -118,6 +118,7 @@ struct CatchCatchApp: App {
             MenuBarContentView(
                 roomState: roomState,
                 localCat: localCat,
+                eventMonitor: eventMonitor,
                 onToggleMove: toggleMoveMode,
                 onJoinRoom: joinRoom,
                 onLeaveRoom: leaveRoom,
