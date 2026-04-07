@@ -14,7 +14,7 @@ class PermissionWindowController: NSWindowController, NSWindowDelegate {
         let hosting = NSHostingController(rootView: view)
         // Borderless window — SwiftUI view provides the card background
         let win = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 330, height: 390),
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 400),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -24,6 +24,8 @@ class PermissionWindowController: NSWindowController, NSWindowDelegate {
         win.hasShadow = true
         win.level = .floating
         win.isMovableByWindowBackground = true
+        // Explicitly size the hosting view to match window
+        hosting.view.frame = NSRect(x: 0, y: 0, width: 380, height: 400)
         win.contentViewController = hosting
         self.init(window: win)
         win.delegate = self
@@ -117,6 +119,7 @@ struct PermissionView: View {
             .padding(.horizontal, 26)
             .padding(.bottom, 26)
         }
+        .frame(width: 380)
         .background(Color(NSColor.windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
