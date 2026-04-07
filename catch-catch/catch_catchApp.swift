@@ -8,18 +8,23 @@ class PermissionWindowController: NSWindowController, NSWindowDelegate {
     static var shared: PermissionWindowController?
 
     convenience init() {
-        let view = PermissionView()
+        let view = PermissionView {
+            PermissionWindowController.shared?.close()
+        }
         let hosting = NSHostingController(rootView: view)
-        let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 300),
-            styleMask: [.titled, .closable],
+        // Borderless window — SwiftUI view provides the card background
+        let win = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 330, height: 390),
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
-        win.title = "catch-catch"
-        win.contentViewController = hosting
+        win.backgroundColor = .clear
+        win.isOpaque = false
+        win.hasShadow = true
         win.level = .floating
         win.isMovableByWindowBackground = true
+        win.contentViewController = hosting
         self.init(window: win)
         win.delegate = self
         win.center()
@@ -32,7 +37,6 @@ class PermissionWindowController: NSWindowController, NSWindowDelegate {
     static func showIfNeeded() {
         let access = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)
         guard access != kIOHIDAccessTypeGranted else { return }
-        // Request so the app appears in System Settings list
         IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { show() }
     }
@@ -50,87 +54,71 @@ class PermissionWindowController: NSWindowController, NSWindowDelegate {
 }
 
 struct PermissionView: View {
-    @State private var step: Int = 1
+    let onLater: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack(spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(Color.orange.opacity(0.15))
-                        .frame(width: 56, height: 56)
-                    Image(systemName: "keyboard")
-                        .font(.system(size: 26))
-                        .foregroundColor(.orange)
-                }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("입력 모니터링 권한 필요")
-                        .font(.system(size: 15, weight: .semibold))
-                    Text("타자 칠 때 고양이를 움직이려면\n아래 순서대로 설정해주세요.")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                        .lineSpacing(2)
-                }
-                Spacer()
-            }
-            .padding(20)
+            // App icon
+            Image("cat_idle")
+                .resizable()
+                .interpolation(.none)
+                .frame(width: 80, height: 80)
+                .background(Color(NSColor.controlBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
+                .padding(.top, 28)
+                .padding(.bottom, 18)
 
-            Divider()
+            // Title
+            Text("Input Monitoring\nPermission Required")
+                .font(.system(size: 16, weight: .bold))
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 26)
+                .padding(.bottom, 10)
 
-            // Steps
-            VStack(alignment: .leading, spacing: 10) {
-                stepRow(num: 1, text: "아래 버튼으로 시스템 설정 열기")
-                stepRow(num: 2, text: "개인 정보 보호 → 입력 모니터링 선택")
-                stepRow(num: 3, text: "catch-catch 항목 토글 ON")
-                stepRow(num: 4, text: "앱 재시작 (아래 버튼)")
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
-
-            Divider()
-
-            // Buttons
-            HStack(spacing: 10) {
-                Button("시스템 설정 열기") {
-                    GlobalEventMonitor.openInputMonitoringSettings()
-                }
-                .buttonStyle(.bordered)
-
-                Spacer()
-
-                Button("재시작") {
-                    restartApp()
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .padding(16)
-        }
-        .frame(width: 420)
-    }
-
-    private func stepRow(num: Int, text: String) -> some View {
-        HStack(spacing: 10) {
-            Text("\(num)")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-                .frame(width: 20, height: 20)
-                .background(Color.accentColor)
-                .clipShape(Circle())
-            Text(text)
+            // Description
+            Text("catch-catch needs Input Monitoring permission to animate the cat when you type.\n\nPlease enable catch-catch in:\nSystem Settings → Privacy & Security\n→ Input Monitoring")
                 .font(.system(size: 13))
-                .foregroundColor(.primary)
-            Spacer()
-        }
-    }
+                .foregroundColor(.primary.opacity(0.75))
+                .multilineTextAlignment(.leading)
+                .lineSpacing(1.5)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 26)
+                .padding(.bottom, 22)
 
-    private func restartApp() {
-        guard let url = Bundle.main.bundleURL as URL? else { return }
-        let config = NSWorkspace.OpenConfiguration()
-        NSWorkspace.shared.openApplication(at: url, configuration: config) { _, _ in }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            NSApp.terminate(nil)
+            // Open Settings button
+            Button {
+                GlobalEventMonitor.openInputMonitoringSettings()
+            } label: {
+                Text("Open System Settings")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .background(Color.accentColor)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 26)
+            .padding(.bottom, 8)
+
+            // Later button
+            Button(action: onLater) {
+                Text("Later")
+                    .font(.system(size: 14))
+                    .foregroundColor(.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .background(Color(NSColor.controlColor))
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 26)
+            .padding(.bottom, 26)
         }
+        .background(Color(NSColor.windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
