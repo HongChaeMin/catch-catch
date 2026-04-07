@@ -4,7 +4,6 @@ import AppKit
 struct MenuBarContentView: View {
     @ObservedObject var roomState: RoomState
     @ObservedObject var localCat: CatState
-    @ObservedObject var eventMonitor: GlobalEventMonitor
     let onToggleMove: () -> Void
     let onJoinRoom: (String) -> Void
     let onLeaveRoom: () -> Void
@@ -14,12 +13,6 @@ struct MenuBarContentView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            // Input Monitoring permission warning
-            if !eventMonitor.hasInputMonitoringPermission {
-                permissionBanner
-                Divider()
-            }
-
             // Display name
             nameSection
 
@@ -52,29 +45,6 @@ struct MenuBarContentView: View {
         }
         .padding(14)
         .frame(width: 240)
-    }
-
-    private var permissionBanner: some View {
-        Button(action: GlobalEventMonitor.openInputMonitoringSettings) {
-            HStack(spacing: 8) {
-                Image(systemName: "keyboard.badge.exclamationmark")
-                    .foregroundColor(.orange)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("타자 감지 권한 필요")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                    Text("설정 열기 →")
-                        .font(.caption2)
-                        .foregroundColor(.blue)
-                }
-                Spacer()
-            }
-            .padding(8)
-            .background(Color.orange.opacity(0.1))
-            .cornerRadius(8)
-        }
-        .buttonStyle(.plain)
     }
 
     private var nameSection: some View {
