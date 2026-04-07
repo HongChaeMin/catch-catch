@@ -57,6 +57,8 @@ class PermissionWindowController: NSWindowController, NSWindowDelegate {
 
 struct PermissionView: View {
     let onLater: () -> Void
+    // After tapping "Open Settings", switch to restart-prompt state
+    @State private var didOpenSettings = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -71,57 +73,88 @@ struct PermissionView: View {
                 .padding(.top, 28)
                 .padding(.bottom, 18)
 
-            // Title
-            Text("Input Monitoring\nPermission Required")
-                .font(.system(size: 16, weight: .bold))
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 26)
-                .padding(.bottom, 10)
+            if didOpenSettings {
+                // --- After opening settings: prompt restart ---
+                Text("권한 설정 완료 후\n앱을 재시작해주세요")
+                    .font(.system(size: 16, weight: .bold))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 26)
+                    .padding(.bottom, 10)
 
-            // Description
-            Text("catch-catch needs Input Monitoring permission to animate the cat when you type.\n\nPlease enable catch-catch in:\nSystem Settings → Privacy & Security\n→ Input Monitoring")
-                .font(.system(size: 13))
-                .foregroundColor(.primary.opacity(0.75))
-                .multilineTextAlignment(.leading)
-                .lineSpacing(1.5)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 26)
-                .padding(.bottom, 22)
+                Text("System Settings에서 catch-catch를\n활성화했다면 아래 버튼으로 재시작하세요.\n재시작 후 타자를 치면 고양이가 반응해요.")
+                    .font(.system(size: 13))
+                    .foregroundColor(.primary.opacity(0.75))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(1.5)
+                    .padding(.horizontal, 26)
+                    .padding(.bottom, 22)
 
-            // Open Settings button
-            Button {
-                GlobalEventMonitor.openInputMonitoringSettings()
-            } label: {
-                Text("Open System Settings")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 9)
-                    .background(Color.accentColor)
-                    .clipShape(Capsule())
+                primaryButton(title: "앱 재시작") { restartApp() }
+                secondaryButton(title: "나중에") { onLater() }
+            } else {
+                // --- Initial state: explain & open settings ---
+                Text("Input Monitoring\nPermission Required")
+                    .font(.system(size: 16, weight: .bold))
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 26)
+                    .padding(.bottom, 10)
+
+                Text("catch-catch needs Input Monitoring permission to animate the cat when you type.\n\nPlease enable catch-catch in:\nSystem Settings → Privacy & Security\n→ Input Monitoring")
+                    .font(.system(size: 13))
+                    .foregroundColor(.primary.opacity(0.75))
+                    .multilineTextAlignment(.leading)
+                    .lineSpacing(1.5)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 26)
+                    .padding(.bottom, 22)
+
+                primaryButton(title: "Open System Settings") {
+                    GlobalEventMonitor.openInputMonitoringSettings()
+                    didOpenSettings = true  // switch to restart state
+                }
+                secondaryButton(title: "Later") { onLater() }
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 26)
-            .padding(.bottom, 8)
-
-            // Later button
-            Button(action: onLater) {
-                Text("Later")
-                    .font(.system(size: 14))
-                    .foregroundColor(.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 9)
-                    .background(Color(NSColor.controlColor))
-                    .clipShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 26)
-            .padding(.bottom, 26)
         }
         .frame(width: 380)
         .background(Color(NSColor.windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func primaryButton(title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 9)
+                .background(Color.accentColor)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 26)
+        .padding(.bottom, 8)
+    }
+
+    private func secondaryButton(title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 14))
+                .foregroundColor(.primary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 9)
+                .background(Color(NSColor.controlColor))
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 26)
+        .padding(.bottom, 26)
+    }
+
+    private func restartApp() {
+        guard let url = Bundle.main.bundleURL as URL? else { return }
+        NSWorkspace.shared.openApplication(at: url, configuration: .init()) { _, _ in }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { NSApp.terminate(nil) }
     }
 }
 
