@@ -159,20 +159,19 @@ struct CatchCatchApp: App {
 
     private func toggleMoveMode() {
         isMoving.toggle()
-        multiScreen?.setMoveMode(isMoving)
+        // Window stays ignoresMouseEvents=true so global monitors keep receiving events
 
         if isMoving {
-            // Track mouse drag globally while in move mode
-            NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDragged]) { [self] event in
-                guard isMoving, let primaryScreen = NSScreen.main else { return }
-                let loc = NSEvent.mouseLocation
-                let newX = loc.x / primaryScreen.frame.width
-                // macOS Y is bottom-left; convert to top-left for SwiftUI
-                let newY = 1.0 - (loc.y / primaryScreen.frame.height)
-                localCat.setPosition(x: newX, y: newY)
-                sendStateThrottled()
+            eventMonitor.startDragTracking { [localCat, wsClient] x, y in
+                localCat.setPosition(x: x, y: y)
+                if wsClient.isConnected {
+                    wsClient.sendState(x: x, y: y, isActive: localCat.isActive)
+                }
+            } onEnd: { [localCat] in
+                localCat.savePosition()
             }
         } else {
+            eventMonitor.stopDragTracking()
             localCat.savePosition()
         }
     }

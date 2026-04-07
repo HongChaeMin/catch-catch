@@ -27,6 +27,8 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
     private let maxRetries = 3
     private var pendingJoin: (roomCode: String, userId: String, name: String)?
 
+    private(set) var isConnected: Bool = false
+
     var onMessage: ((ServerMessage) -> Void)?
     var onConnected: (() -> Void)?
     var onDisconnected: (() -> Void)?
@@ -135,6 +137,7 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
     func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
                     didOpenWithProtocol protocol: String?) {
         retryCount = 0
+        isConnected = true
         onConnected?()
         if let pending = pendingJoin {
             let msg: [String: Any] = [
@@ -149,6 +152,7 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
 
     func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
                     didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        isConnected = false
         onDisconnected?()
     }
 }
