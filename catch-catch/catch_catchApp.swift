@@ -8,19 +8,18 @@ class PermissionWindowController: NSWindowController, NSWindowDelegate {
     static var shared: PermissionWindowController?
 
     convenience init() {
-        let view = PermissionView(onOpenSettings: {
-            GlobalEventMonitor.openInputMonitoringSettings()
-        })
+        let view = PermissionView()
         let hosting = NSHostingController(rootView: view)
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 220),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 300),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
-        win.title = "catch-catch — 권한 필요"
+        win.title = "catch-catch"
         win.contentViewController = hosting
         win.level = .floating
+        win.isMovableByWindowBackground = true
         self.init(window: win)
         win.delegate = self
         win.center()
@@ -33,7 +32,9 @@ class PermissionWindowController: NSWindowController, NSWindowDelegate {
     static func showIfNeeded() {
         let access = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)
         guard access != kIOHIDAccessTypeGranted else { return }
-        DispatchQueue.main.async { show() }
+        // Request so the app appears in System Settings list
+        IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { show() }
     }
 
     static func show() {
@@ -49,34 +50,87 @@ class PermissionWindowController: NSWindowController, NSWindowDelegate {
 }
 
 struct PermissionView: View {
-    let onOpenSettings: () -> Void
+    @State private var step: Int = 1
 
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "keyboard.badge.exclamationmark")
-                .font(.system(size: 48))
-                .foregroundColor(.orange)
-
-            VStack(spacing: 6) {
-                Text("입력 모니터링 권한 필요")
-                    .font(.headline)
-                Text("타자 칠 때 고양이가 반응하려면\n시스템 설정에서 권한을 허용해야 해요.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+        VStack(spacing: 0) {
+            // Header
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color.orange.opacity(0.15))
+                        .frame(width: 56, height: 56)
+                    Image(systemName: "keyboard")
+                        .font(.system(size: 26))
+                        .foregroundColor(.orange)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("입력 모니터링 권한 필요")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("타자 칠 때 고양이를 움직이려면\n아래 순서대로 설정해주세요.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .lineSpacing(2)
+                }
+                Spacer()
             }
+            .padding(20)
 
-            Button("시스템 설정 열기") {
-                onOpenSettings()
+            Divider()
+
+            // Steps
+            VStack(alignment: .leading, spacing: 10) {
+                stepRow(num: 1, text: "아래 버튼으로 시스템 설정 열기")
+                stepRow(num: 2, text: "개인 정보 보호 → 입력 모니터링 선택")
+                stepRow(num: 3, text: "catch-catch 항목 토글 ON")
+                stepRow(num: 4, text: "앱 재시작 (아래 버튼)")
             }
-            .buttonStyle(.borderedProminent)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
 
-            Text("설정 후 앱을 재시작해주세요.")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            Divider()
+
+            // Buttons
+            HStack(spacing: 10) {
+                Button("시스템 설정 열기") {
+                    GlobalEventMonitor.openInputMonitoringSettings()
+                }
+                .buttonStyle(.bordered)
+
+                Spacer()
+
+                Button("재시작") {
+                    restartApp()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(16)
         }
-        .padding(30)
-        .frame(width: 360, height: 220)
+        .frame(width: 420)
+    }
+
+    private func stepRow(num: Int, text: String) -> some View {
+        HStack(spacing: 10) {
+            Text("\(num)")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .frame(width: 20, height: 20)
+                .background(Color.accentColor)
+                .clipShape(Circle())
+            Text(text)
+                .font(.system(size: 13))
+                .foregroundColor(.primary)
+            Spacer()
+        }
+    }
+
+    private func restartApp() {
+        guard let url = Bundle.main.bundleURL as URL? else { return }
+        let config = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.openApplication(at: url, configuration: config) { _, _ in }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            NSApp.terminate(nil)
+        }
     }
 }
 
@@ -118,7 +172,6 @@ class CatWindowController: NSObject, NSWindowDelegate {
             screen: screen,
             isPrimary: isPrimary
         )
-        // Explicitly set frame like mimo does — required for correct rendering
         let hostingView = NSHostingView(rootView: view)
         hostingView.frame = NSRect(origin: .zero, size: screen.frame.size)
         win.contentView = hostingView
@@ -162,7 +215,7 @@ class MultiScreenCatController {
     }
 }
 
-// MARK: - App Coordinator (owns all state, initializes at launch)
+// MARK: - App Coordinator
 
 class AppCoordinator: ObservableObject {
     let localCat = CatState()
@@ -181,7 +234,13 @@ class AppCoordinator: ObservableObject {
         localCat.loadPosition()
         localCat.name = roomState.displayName
 
-        // Show overlay immediately at launch — don't wait for menu bar click
+        // Defer overlay + monitor setup until after app finishes launching
+        DispatchQueue.main.async { [weak self] in
+            self?.lateSetup()
+        }
+    }
+
+    private func lateSetup() {
         let ctrl = MultiScreenCatController(localCat: localCat, roomState: roomState)
         multiScreen = ctrl
         ctrl.show()
@@ -241,23 +300,16 @@ class AppCoordinator: ObservableObject {
     // MARK: - WebSocket
 
     private func setupWebSocketHandlers() {
-        wsClient.onConnected = { [weak self] in
-            self?.roomState.isConnected = true
-        }
-        wsClient.onDisconnected = { [weak self] in
-            self?.roomState.isConnected = false
-        }
-        wsClient.onMessage = { [weak self] message in
-            self?.handleServerMessage(message)
-        }
+        wsClient.onConnected = { [weak self] in self?.roomState.isConnected = true }
+        wsClient.onDisconnected = { [weak self] in self?.roomState.isConnected = false }
+        wsClient.onMessage = { [weak self] msg in self?.handleServerMessage(msg) }
     }
 
     private func handleServerMessage(_ message: ServerMessage) {
         switch message {
         case .joined(let users):
-            for user in users {
-                roomState.upsertPeer(userId: user.userId, name: user.name,
-                                     x: user.x, y: user.y, isActive: user.isActive)
+            for u in users {
+                roomState.upsertPeer(userId: u.userId, name: u.name, x: u.x, y: u.y, isActive: u.isActive)
             }
         case .userJoined(let userId, let name):
             roomState.upsertPeer(userId: userId, name: name, x: 0.85, y: 0.85, isActive: false)

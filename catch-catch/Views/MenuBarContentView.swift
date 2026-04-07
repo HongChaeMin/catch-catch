@@ -10,148 +10,206 @@ struct MenuBarContentView: View {
     var isMoving: Bool
 
     @State private var roomCodeInput: String = ""
+    @State private var isEditingName = false
 
     var body: some View {
-        VStack(spacing: 12) {
-            // Display name
-            nameSection
-
+        VStack(spacing: 0) {
+            catHeader
             Divider()
-
-            // Room section
             roomSection
-
             Divider()
+            bottomBar
+        }
+        .frame(width: 260)
+    }
 
-            // Move cat button
+    // MARK: - Cat header (name + move button)
+
+    private var catHeader: some View {
+        HStack(spacing: 10) {
+            // Cat preview
+            Image(localCat.isActive ? "cat_active" : "cat_idle")
+                .resizable()
+                .interpolation(.none)
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            // Name field
+            VStack(alignment: .leading, spacing: 2) {
+                Text("내 이름")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                TextField("이름", text: $roomState.displayName)
+                    .font(.system(size: 13, weight: .medium))
+                    .textFieldStyle(.plain)
+                    .onSubmit {
+                        localCat.name = roomState.displayName
+                        UserDefaults.standard.set(roomState.displayName, forKey: "displayName")
+                    }
+            }
+
+            Spacer()
+
+            // Move mode toggle
             Button(action: onToggleMove) {
-                HStack {
-                    Image(systemName: isMoving ? "lock.fill" : "arrow.up.and.down.and.arrow.left.and.right")
-                    Text(isMoving ? "위치 고정" : "고양이 이동")
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(isMoving ? Color.orange.opacity(0.15) : Color.gray.opacity(0.1))
-                .foregroundColor(isMoving ? .orange : .primary)
-                .cornerRadius(8)
+                Image(systemName: isMoving ? "lock.fill" : "arrow.up.and.down.and.arrow.left.and.right")
+                    .font(.system(size: 13))
+                    .frame(width: 28, height: 28)
+                    .background(isMoving ? Color.orange.opacity(0.2) : Color.secondary.opacity(0.1))
+                    .foregroundColor(isMoving ? .orange : .secondary)
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
             }
             .buttonStyle(.plain)
-
-            Divider()
-
-            Button("종료") { NSApplication.shared.terminate(nil) }
-                .buttonStyle(.plain)
-                .foregroundColor(.secondary)
+            .help(isMoving ? "위치 고정" : "고양이 이동")
         }
         .padding(14)
-        .frame(width: 240)
     }
 
-    private var nameSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("내 이름")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            TextField("이름 입력", text: $roomState.displayName)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit {
-                    localCat.name = roomState.displayName
-                    UserDefaults.standard.set(roomState.displayName, forKey: "displayName")
-                }
-        }
-    }
+    // MARK: - Room section
 
     @ViewBuilder
     private var roomSection: some View {
         if let code = roomState.roomCode {
-            // Connected to a room
-            VStack(spacing: 8) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("룸 코드")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(code)
-                            .font(.system(.title3, design: .monospaced, weight: .bold))
-                            .foregroundColor(.blue)
-                    }
-                    Spacer()
-                    Button {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(code, forType: .string)
-                    } label: {
-                        Image(systemName: "doc.on.clipboard")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.secondary)
-                }
-
-                // Connection status
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(roomState.isConnected ? Color.green : Color.orange)
-                        .frame(width: 7, height: 7)
-                    Text(roomState.isConnected ? "\(roomState.peers.count + 1)명 접속 중" : "연결 중...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                }
-
-                // Peer list
-                if !roomState.peers.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(roomState.peers) { peer in
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .fill(peer.isActive ? Color.green : Color.gray.opacity(0.4))
-                                    .frame(width: 6, height: 6)
-                                Text(peer.name)
-                                    .font(.caption)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                Button("나가기", action: onLeaveRoom)
-                    .buttonStyle(.plain)
-                    .foregroundColor(.red)
-                    .font(.subheadline)
-            }
+            connectedRoomView(code: code)
         } else {
-            // Not in a room
-            VStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("룸 코드로 참가")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    HStack {
-                        TextField("ABC123", text: $roomCodeInput)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.body, design: .monospaced))
-                            .textCase(.uppercase)
-                            .onSubmit { joinIfValid() }
-                        Button("참가") { joinIfValid() }
-                            .disabled(roomCodeInput.trimmingCharacters(in: .whitespaces).isEmpty)
-                    }
-                }
-
-                if let error = roomState.connectionError {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                }
-
-                Button("새 룸 만들기") {
-                    let code = randomRoomCode()
-                    roomCodeInput = code
-                    onJoinRoom(code)
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(.blue)
-            }
+            joinRoomView
         }
     }
+
+    private func connectedRoomView(code: String) -> some View {
+        VStack(spacing: 10) {
+            // Room code + copy
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("룸 코드")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                    Text(code)
+                        .font(.system(size: 18, weight: .bold, design: .monospaced))
+                        .foregroundColor(.accentColor)
+                        .tracking(2)
+                }
+                Spacer()
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(code, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.system(size: 13))
+                        .frame(width: 28, height: 28)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.secondary)
+                .help("코드 복사")
+            }
+
+            // Connection status + peers
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(roomState.isConnected ? Color.green : Color.orange)
+                    .frame(width: 6, height: 6)
+                Text(roomState.isConnected ? "연결됨" : "연결 중...")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                Spacer()
+                if !roomState.peers.isEmpty {
+                    Text("\(roomState.peers.count + 1)명")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            // Peer list
+            if !roomState.peers.isEmpty {
+                VStack(spacing: 4) {
+                    ForEach(roomState.peers) { peer in
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(peer.isActive ? Color.green : Color.gray.opacity(0.3))
+                                .frame(width: 6, height: 6)
+                            Text(peer.name)
+                                .font(.system(size: 12))
+                                .foregroundColor(.primary)
+                            Spacer()
+                        }
+                        .padding(.vertical, 2)
+                        .padding(.horizontal, 6)
+                        .background(Color.secondary.opacity(0.05))
+                        .cornerRadius(6)
+                    }
+                }
+            }
+
+            // Leave button
+            Button(action: onLeaveRoom) {
+                Text("나가기")
+                    .font(.system(size: 12))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.bordered)
+            .foregroundColor(.red)
+        }
+        .padding(14)
+    }
+
+    private var joinRoomView: some View {
+        VStack(spacing: 10) {
+            // Code input
+            HStack(spacing: 6) {
+                TextField("코드 입력 (예: ABC123)", text: $roomCodeInput)
+                    .font(.system(size: 13, design: .monospaced))
+                    .textFieldStyle(.roundedBorder)
+                    .textCase(.uppercase)
+                    .onSubmit { joinIfValid() }
+
+                Button("참가", action: joinIfValid)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(roomCodeInput.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+
+            if let error = roomState.connectionError {
+                Text(error)
+                    .font(.system(size: 11))
+                    .foregroundColor(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Button {
+                let code = randomRoomCode()
+                roomCodeInput = code
+                onJoinRoom(code)
+            } label: {
+                Label("새 룸 만들기", systemImage: "plus.circle.fill")
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(14)
+    }
+
+    // MARK: - Bottom bar
+
+    private var bottomBar: some View {
+        HStack {
+            Text("catch-catch")
+                .font(.system(size: 10))
+                .foregroundColor(Color.secondary.opacity(0.5))
+            Spacer()
+            Button("종료") { NSApp.terminate(nil) }
+                .buttonStyle(.plain)
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+
+    // MARK: - Helpers
 
     private func joinIfValid() {
         let code = roomCodeInput.trimmingCharacters(in: .whitespaces).uppercased()
