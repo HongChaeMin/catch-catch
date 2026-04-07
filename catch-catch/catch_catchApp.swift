@@ -32,10 +32,12 @@ class CatWindowController: NSObject, NSWindowDelegate {
         win.hidesOnDeactivate = false
         win.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
 
+        let isPrimary = screen == NSScreen.main
         let view = CatOverlayView(
             localCat: localCat,
             roomState: roomState,
-            screenSize: screen.frame.size
+            screen: screen,
+            isPrimary: isPrimary
         )
         win.contentView = NSHostingView(rootView: view)
         win.delegate = self
@@ -80,9 +82,6 @@ class MultiScreenCatController {
         controllers.removeAll()
     }
 
-    func setMoveMode(_ enabled: Bool) {
-        controllers.forEach { $0.setIgnoresMouseEvents(!enabled) }
-    }
 }
 
 // MARK: - App Delegate
@@ -160,13 +159,14 @@ struct CatchCatchApp: App {
 
     private func toggleMoveMode() {
         isMoving.toggle()
-        // Window stays ignoresMouseEvents=true so global monitors keep receiving events
 
         if isMoving {
-            eventMonitor.startDragTracking { [localCat, wsClient] x, y in
-                localCat.setPosition(x: x, y: y)
+            eventMonitor.startDragTracking { [localCat, wsClient] absPoint in
+                // absPoint = NSEvent.mouseLocation (macOS absolute, bottom-left origin)
+                localCat.setAbsPosition(absPoint)
                 if wsClient.isConnected {
-                    wsClient.sendState(x: x, y: y, isActive: localCat.isActive)
+                    let net = localCat.networkPosition
+                    wsClient.sendState(x: net.x, y: net.y, isActive: localCat.isActive)
                 }
             } onEnd: { [localCat] in
                 localCat.savePosition()
@@ -251,7 +251,8 @@ struct CatchCatchApp: App {
         stateThrottleTimer?.invalidate()
         stateThrottleTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { _ in
             guard roomState.isConnected else { return }
-            wsClient.sendState(x: localCat.x, y: localCat.y, isActive: localCat.isActive)
+            let net = localCat.networkPosition
+            wsClient.sendState(x: net.x, y: net.y, isActive: localCat.isActive)
         }
     }
 }

@@ -81,8 +81,8 @@ class GlobalEventMonitor: ObservableObject {
 
     /// Start tracking mouse drag to move the cat.
     /// The window stays ignoresMouseEvents=true so global monitors work correctly.
-    /// onDrag fires with the cursor position in normalized screen coordinates (0–1).
-    func startDragTracking(onDrag: @escaping (Double, Double) -> Void, onEnd: @escaping () -> Void) {
+    /// onDrag fires with the cursor's absolute macOS position (bottom-left origin).
+    func startDragTracking(onDrag: @escaping (CGPoint) -> Void, onEnd: @escaping () -> Void) {
         stopDragTracking()
 
         dragMouseDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
@@ -90,11 +90,9 @@ class GlobalEventMonitor: ObservableObject {
         }
 
         dragMoveMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged) { [weak self] _ in
-            guard self?.isDragging == true, let screen = NSScreen.main else { return }
-            let loc = NSEvent.mouseLocation
-            let x = loc.x / screen.frame.width
-            let y = 1.0 - (loc.y / screen.frame.height)  // flip Y: macOS is bottom-left, SwiftUI is top-left
-            DispatchQueue.main.async { onDrag(x, y) }
+            guard self?.isDragging == true else { return }
+            let loc = NSEvent.mouseLocation  // absolute macOS coords, bottom-left origin
+            DispatchQueue.main.async { onDrag(loc) }
         }
 
         dragMouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { [weak self] _ in
