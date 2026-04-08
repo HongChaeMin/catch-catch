@@ -6,9 +6,21 @@ class CatState: ObservableObject {
     @Published var absX: Double
     @Published var absY: Double
     @Published var isActive: Bool = false
+    @Published var bubbleMessages: [BubbleMessage] = []
 
     let userId: String
     var name: String
+
+    func showMessage(_ text: String, duration: TimeInterval = 5) {
+        let msg = BubbleMessage(text: text)
+        bubbleMessages.append(msg)
+        if bubbleMessages.count > 5 {
+            bubbleMessages.removeFirst(bubbleMessages.count - 5)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
+            self?.bubbleMessages.removeAll { $0.id == msg.id }
+        }
+    }
 
     init(userId: String = UUID().uuidString, name: String = "me") {
         self.userId = userId

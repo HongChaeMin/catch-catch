@@ -7,14 +7,18 @@ struct MenuBarContentView: View {
     let onToggleMove: () -> Void
     let onJoinRoom: (String) -> Void
     let onLeaveRoom: () -> Void
+    let onSendChat: (String) -> Void
+    let onNameChanged: (String) -> Void
     var isMoving: Bool
 
     @State private var roomCodeInput: String = ""
-    @State private var isEditingName = false
+    @State private var chatInput: String = ""
 
     var body: some View {
         VStack(spacing: 0) {
             catHeader
+            Divider()
+            themeSection
             Divider()
             roomSection
             Divider()
@@ -23,18 +27,16 @@ struct MenuBarContentView: View {
         .frame(width: 260)
     }
 
-    // MARK: - Cat header (name + move button)
+    // MARK: - Cat header
 
     private var catHeader: some View {
         HStack(spacing: 10) {
-            // Cat preview
-            Image(localCat.isActive ? "cat_active" : "cat_idle")
+            Image(localCat.isActive ? roomState.selectedTheme.activeImage : roomState.selectedTheme.idleImage)
                 .resizable()
                 .interpolation(.none)
                 .frame(width: 44, height: 44)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
 
-            // Name field
             VStack(alignment: .leading, spacing: 2) {
                 Text("내 이름")
                     .font(.system(size: 10))
@@ -43,14 +45,12 @@ struct MenuBarContentView: View {
                     .font(.system(size: 13, weight: .medium))
                     .textFieldStyle(.plain)
                     .onSubmit {
-                        localCat.name = roomState.displayName
-                        UserDefaults.standard.set(roomState.displayName, forKey: "displayName")
+                        onNameChanged(roomState.displayName)
                     }
             }
 
             Spacer()
 
-            // Move mode toggle
             Button(action: onToggleMove) {
                 Image(systemName: isMoving ? "lock.fill" : "arrow.up.and.down.and.arrow.left.and.right")
                     .font(.system(size: 13))
@@ -63,6 +63,48 @@ struct MenuBarContentView: View {
             .help(isMoving ? "위치 고정" : "고양이 이동")
         }
         .padding(14)
+    }
+
+    // MARK: - Theme section
+
+    private var themeSection: some View {
+        HStack(spacing: 8) {
+            Text("테마")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+                .frame(width: 28, alignment: .leading)
+
+            HStack(spacing: 6) {
+                ForEach(CatTheme.allCases, id: \.self) { theme in
+                    Button {
+                        roomState.selectedTheme = theme
+                        UserDefaults.standard.set(theme.rawValue, forKey: "catTheme")
+                    } label: {
+                        Image(theme.idleImage)
+                            .resizable()
+                            .interpolation(.none)
+                            .frame(width: 32, height: 32)
+                            .padding(3)
+                            .background(roomState.selectedTheme == theme
+                                ? Color.accentColor.opacity(0.2)
+                                : Color.clear)
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 7)
+                                    .stroke(roomState.selectedTheme == theme
+                                        ? Color.accentColor
+                                        : Color.clear, lineWidth: 1.5)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help(theme.displayName)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Room section
@@ -105,14 +147,14 @@ struct MenuBarContentView: View {
                 .help("코드 복사")
             }
 
-            // Connection status + peers
+            // Connection status
             HStack(spacing: 6) {
                 Circle()
                     .fill(roomState.isConnected ? Color.green : Color.orange)
                     .frame(width: 6, height: 6)
-                Text(roomState.isConnected ? "연결됨" : "연결 중...")
+                Text(roomState.isConnected ? "연결됨" : "재연결 중...")
                     .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(roomState.isConnected ? .secondary : .orange)
                 Spacer()
                 if !roomState.peers.isEmpty {
                     Text("\(roomState.peers.count + 1)명")
@@ -142,6 +184,11 @@ struct MenuBarContentView: View {
                 }
             }
 
+            Divider()
+
+            // Chat
+            chatSection
+
             // Leave button
             Button(action: onLeaveRoom) {
                 Text("나가기")
@@ -155,9 +202,75 @@ struct MenuBarContentView: View {
         .padding(14)
     }
 
+    // MARK: - Chat
+
+    private var chatSection: some View {
+        VStack(spacing: 6) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 4) {
+                        ForEach(roomState.messages) { msg in
+                            chatRow(msg).id(msg.id)
+                        }
+                    }
+                    .padding(.horizontal, 4)
+                    Color.clear.frame(height: 1).id("bottom")
+                }
+                .frame(maxHeight: 120)
+                .onChange(of: roomState.messages.count) { _ in
+                    withAnimation { proxy.scrollTo("bottom") }
+                }
+            }
+
+            HStack(spacing: 6) {
+                TextField("메시지 입력...", text: $chatInput)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+                    .onSubmit { submitChat() }
+
+                Button(action: submitChat) {
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(chatInput.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+    }
+
+    private func chatRow(_ msg: ChatMessage) -> some View {
+        let isMe = msg.userId == localCat.userId
+        return HStack(alignment: .top, spacing: 0) {
+            if isMe { Spacer(minLength: 20) }
+            VStack(alignment: isMe ? .trailing : .leading, spacing: 2) {
+                if !isMe {
+                    Text(msg.name)
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                }
+                Text(msg.text)
+                    .font(.system(size: 11))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(isMe ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(0.1))
+                    .cornerRadius(8)
+                    .textSelection(.enabled)
+            }
+            if !isMe { Spacer(minLength: 20) }
+        }
+    }
+
+    private func submitChat() {
+        let text = chatInput.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return }
+        onSendChat(text)
+        chatInput = ""
+    }
+
+    // MARK: - Join room
+
     private var joinRoomView: some View {
         VStack(spacing: 10) {
-            // Code input
             HStack(spacing: 6) {
                 TextField("코드 입력 (예: ABC123)", text: $roomCodeInput)
                     .font(.system(size: 13, design: .monospaced))

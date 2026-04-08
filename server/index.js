@@ -68,6 +68,29 @@ wss.on('connection', (ws) => {
         active: msg.active,
       });
 
+    } else if (type === 'rename') {
+      if (!userId || !roomCode) return;
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const peer = room.get(userId);
+      if (!peer) return;
+      const newName = typeof msg.name === 'string' ? msg.name.trim().slice(0, 50) : '';
+      if (!newName) return;
+      peer.name = newName;
+      broadcast(roomCode, userId, { type: 'renamed', userId, name: newName });
+
+    } else if (type === 'chat') {
+      if (!userId || !roomCode) return;
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const peer = room.get(userId);
+      const senderName = peer ? peer.name : 'Anonymous';
+      const text = typeof msg.text === 'string' ? msg.text.trim().slice(0, 500) : '';
+      if (!text) return;
+      for (const [, p] of room.entries()) {
+        safeSend(p.ws, { type: 'chat', userId, name: senderName, text });
+      }
+
     } else if (type === 'leave') {
       handleLeave();
     }

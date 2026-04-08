@@ -64,6 +64,101 @@ class CatWindowController: NSObject, NSWindowDelegate {
     }
 }
 
+// MARK: - Floating chat panel
+
+/// Borderless NSPanel must override canBecomeKey to accept keyboard input
+/// (e.g. TextField focus). Default NSPanel returns false for borderless.
+final class KeyableChatPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+
+class ChatPanel {
+    private var panel: NSPanel?
+    var onSendChat: ((String) -> Void)?
+
+    var isVisible: Bool { panel != nil }
+
+    func toggle(near catAbsPoint: CGPoint) {
+        if panel != nil {
+            hide()
+        } else {
+            show(near: catAbsPoint)
+        }
+    }
+
+    func show(near catAbsPoint: CGPoint) {
+        hide()
+
+        let width = ChatInputView.width
+        let height = ChatInputView.height
+        let size = CGSize(width: width, height: height)
+
+        // catAbsPoint는 고양이 중심(absX, absY + 40), 이미지 80×80
+        let catRect = CGRect(
+            x: catAbsPoint.x - 40, y: catAbsPoint.y - 40,
+            width: 80, height: 80
+        )
+
+        let screen = NSScreen.screens.first { $0.frame.contains(catAbsPoint) } ?? NSScreen.main
+        let vf = screen?.visibleFrame ?? .zero
+        let gap: CGFloat = 28
+
+        // 후보: 아래 → 위 → 오른쪽. 고양이와 안 겹치고 visibleFrame 내에 완전히 들어가는 첫 번째.
+        let candidates: [NSPoint] = [
+            NSPoint(x: catAbsPoint.x - width / 2, y: catRect.minY - height - gap),
+            NSPoint(x: catAbsPoint.x - width / 2, y: catRect.maxY + gap),
+            NSPoint(x: catRect.maxX + gap, y: catAbsPoint.y - height / 2),
+        ]
+        let picked = candidates.first { origin in
+            let r = CGRect(origin: origin, size: size)
+            return vf.contains(r) && !r.intersects(catRect)
+        } ?? candidates[0]
+
+        // 최종 안전망: visibleFrame 내로 클램프
+        let origin = NSPoint(
+            x: min(max(vf.minX + 8, picked.x), vf.maxX - width - 8),
+            y: min(max(vf.minY + 8, picked.y), vf.maxY - height - 8)
+        )
+
+        let p = KeyableChatPanel(
+            contentRect: NSRect(origin: origin, size: size),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        p.level = .statusBar + 1
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.hasShadow = false
+        p.hidesOnDeactivate = false
+        p.isFloatingPanel = true
+        p.becomesKeyOnlyIfNeeded = false
+        p.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
+
+        let hostingView = NSHostingView(rootView: ChatInputView(
+            onSend: { [weak self] text in
+                // 전송 후에도 입력창은 열어둠 (Esc 또는 외부 클릭으로만 닫힘)
+                self?.onSendChat?(text)
+            },
+            onDismiss: { [weak self] in
+                self?.hide()
+            }
+        ))
+        hostingView.frame = NSRect(origin: .zero, size: p.frame.size)
+        p.contentView = hostingView
+
+        self.panel = p
+        p.orderFrontRegardless()
+        p.makeKey()
+    }
+
+    func hide() {
+        panel?.orderOut(nil)
+        panel = nil
+    }
+}
+
 // MARK: - Multi-screen controller
 
 class MultiScreenCatController {
@@ -102,6 +197,7 @@ class AppCoordinator: ObservableObject {
     @Published var isMoving = false
 
     private var multiScreen: MultiScreenCatController?
+    private let chatPanel = ChatPanel()
     private var stateThrottleTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
 
@@ -124,7 +220,39 @@ class AppCoordinator: ObservableObject {
 
         setupEventMonitor()
         setupWebSocketHandlers()
+        setupChatPanel()
         PermissionAlert.showIfNeeded()
+    }
+
+    // MARK: - Chat panel (click on cat)
+
+    private var catClickMonitor: Any?
+
+    private func setupChatPanel() {
+        chatPanel.onSendChat = { [weak self] text in
+            self?.sendChat(text)
+        }
+
+        // 글로벌 모니터는 앱 외부로 향하는 이벤트만 잡음.
+        // 채팅 패널을 클릭하면 패널이 이벤트를 소비하므로 여기선 안 걸림 → 안전하게 outside-click dismiss 가능.
+        catClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
+            guard let self, roomState.isConnected, !isMoving else { return }
+            let clickPoint = NSEvent.mouseLocation
+            // 고양이 이미지는 80x80, 중심이 (absX, absY)에서 위쪽 40px
+            let catCenter = CGPoint(x: localCat.absX, y: localCat.absY + 40)
+            let dx = clickPoint.x - catCenter.x
+            let dy = clickPoint.y - catCenter.y
+            let isCatClick = abs(dx) < 40 && abs(dy) < 40
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                if isCatClick {
+                    chatPanel.toggle(near: CGPoint(x: localCat.absX, y: localCat.absY + 40))
+                } else if chatPanel.isVisible {
+                    chatPanel.hide()
+                }
+            }
+        }
     }
 
     // MARK: - Event monitor
@@ -177,11 +305,31 @@ class AppCoordinator: ObservableObject {
         roomState.reset()
     }
 
+    func sendChat(_ text: String) {
+        guard wsClient.isConnected else { return }
+        wsClient.sendChat(text: text)
+    }
+
+    func renameInRoom(_ name: String) {
+        localCat.name = name
+        UserDefaults.standard.set(name, forKey: "displayName")
+        if wsClient.isConnected {
+            wsClient.sendRename(name: name)
+        }
+    }
+
     // MARK: - WebSocket
 
     private func setupWebSocketHandlers() {
         wsClient.onConnected = { [weak self] in self?.roomState.isConnected = true }
         wsClient.onDisconnected = { [weak self] in self?.roomState.isConnected = false }
+        wsClient.onConnectionFailed = { [weak self] in
+            guard let self else { return }
+            roomState.isConnected = false
+            roomState.connectionError = "연결이 끊겼습니다"
+            roomState.roomCode = nil
+            roomState.peers = []
+        }
         wsClient.onMessage = { [weak self] msg in self?.handleServerMessage(msg) }
     }
 
@@ -197,6 +345,15 @@ class AppCoordinator: ObservableObject {
             roomState.removePeer(userId: userId)
         case .stateUpdate(let userId, let x, let y, let isActive):
             roomState.updatePeerState(userId: userId, x: x, y: y, isActive: isActive)
+        case .renamed(let userId, let name):
+            roomState.updatePeerName(userId: userId, name: name)
+        case .chat(let userId, let name, let text):
+            roomState.addMessage(userId: userId, name: name, text: text)
+            if userId == localCat.userId {
+                localCat.showMessage(text)
+            } else {
+                roomState.showPeerMessage(userId: userId, text: text)
+            }
         case .error(let msg):
             roomState.connectionError = msg
             roomState.roomCode = nil
@@ -236,6 +393,8 @@ struct CatchCatchApp: App {
                 onToggleMove: coordinator.toggleMoveMode,
                 onJoinRoom: coordinator.joinRoom,
                 onLeaveRoom: coordinator.leaveRoom,
+                onSendChat: coordinator.sendChat,
+                onNameChanged: coordinator.renameInRoom,
                 isMoving: coordinator.isMoving
             )
         }

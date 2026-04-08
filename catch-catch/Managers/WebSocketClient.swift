@@ -7,6 +7,8 @@ enum ServerMessage {
     case userJoined(userId: String, name: String)
     case userLeft(userId: String)
     case stateUpdate(userId: String, x: Double, y: Double, isActive: Bool)
+    case renamed(userId: String, name: String)
+    case chat(userId: String, name: String, text: String)
     case error(message: String)
 }
 
@@ -25,16 +27,17 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
     private var session: URLSession?
     private var retryCount = 0
     private let maxRetries = 3
-    private var pendingJoin: (roomCode: String, userId: String, name: String)?
+    private var pendingJoin: (url: URL, roomCode: String, userId: String, name: String)?
 
     private(set) var isConnected: Bool = false
 
     var onMessage: ((ServerMessage) -> Void)?
     var onConnected: (() -> Void)?
     var onDisconnected: (() -> Void)?
+    var onConnectionFailed: (() -> Void)?
 
     func connect(to url: URL, roomCode: String, userId: String, name: String) {
-        pendingJoin = (roomCode, userId, name)
+        pendingJoin = (url, roomCode, userId, name)
         session = URLSession(configuration: .default, delegate: self, delegateQueue: .main)
         task = session?.webSocketTask(with: url)
         task?.resume()
@@ -46,11 +49,20 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
         task = nil
         pendingJoin = nil
         retryCount = 0
+        isConnected = false
     }
 
     func sendState(x: Double, y: Double, isActive: Bool) {
         let msg: [String: Any] = ["type": "state", "x": x, "y": y, "active": isActive]
         send(msg)
+    }
+
+    func sendChat(text: String) {
+        send(["type": "chat", "text": text])
+    }
+
+    func sendRename(name: String) {
+        send(["type": "rename", "name": name])
     }
 
     private func send(_ dict: [String: Any]) {
@@ -113,6 +125,18 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
                 ))
             }
 
+        case "renamed":
+            if let userId = json["userId"] as? String, let name = json["name"] as? String {
+                onMessage?(.renamed(userId: userId, name: name))
+            }
+
+        case "chat":
+            if let userId = json["userId"] as? String,
+               let name = json["name"] as? String,
+               let text = json["text"] as? String {
+                onMessage?(.chat(userId: userId, name: name, text: text))
+            }
+
         case "error":
             onMessage?(.error(message: json["message"] as? String ?? "Unknown error"))
 
@@ -122,13 +146,19 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
     }
 
     private func handleDisconnect() {
+        isConnected = false
         onDisconnected?()
-        guard retryCount < maxRetries, let pending = pendingJoin else { return }
+
+        guard retryCount < maxRetries, pendingJoin != nil else {
+            if pendingJoin != nil { onConnectionFailed?() }
+            return
+        }
+
         retryCount += 1
         let delay = pow(2.0, Double(retryCount))
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self, let url = self.task?.originalRequest?.url else { return }
-            self.connect(to: url, roomCode: pending.roomCode, userId: pending.userId, name: pending.name)
+            guard let self, let pending = self.pendingJoin else { return }
+            self.connect(to: pending.url, roomCode: pending.roomCode, userId: pending.userId, name: pending.name)
         }
     }
 
@@ -152,7 +182,6 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
 
     func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
                     didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
-        isConnected = false
-        onDisconnected?()
+        handleDisconnect()
     }
 }
