@@ -2,9 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDisplayName</key>
+	<string>catch-catch</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
 	<key>LSUIElement</key>
 	<false/>
 	<key>NSInputMonitoringUsageDescription</key>
-	<string>catch-catch needs to monitor keyboard and mouse input to animate the cat when you type or click.</string>
+	<string>catch-catch needs to monitor keyboard input to animate the cat when you type.</string>
 </dict>
 </plist>

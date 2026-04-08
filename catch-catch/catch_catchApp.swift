@@ -1,160 +1,12 @@
 import SwiftUI
 import AppKit
-import IOKit.hid
+import Combine
 
-// MARK: - Permission Window
+// MARK: - Permission Alert (mimo 방식 그대로)
 
-class PermissionWindowController: NSWindowController, NSWindowDelegate {
-    static var shared: PermissionWindowController?
-
-    convenience init() {
-        let view = PermissionView {
-            PermissionWindowController.shared?.close()
-        }
-        let hosting = NSHostingController(rootView: view)
-        // Borderless window — SwiftUI view provides the card background
-        let win = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 400),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        win.backgroundColor = .clear
-        win.isOpaque = false
-        win.hasShadow = true
-        win.level = .floating
-        win.isMovableByWindowBackground = true
-        // Explicitly size the hosting view to match window
-        hosting.view.frame = NSRect(x: 0, y: 0, width: 380, height: 400)
-        win.contentViewController = hosting
-        self.init(window: win)
-        win.delegate = self
-        win.center()
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        PermissionWindowController.shared = nil
-    }
-
+enum PermissionAlert {
     static func showIfNeeded() {
-        let access = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)
-        guard access != kIOHIDAccessTypeGranted else { return }
-        IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { show() }
-    }
-
-    static func show() {
-        if let existing = shared {
-            existing.window?.makeKeyAndOrderFront(nil)
-        } else {
-            let ctrl = PermissionWindowController()
-            shared = ctrl
-            ctrl.showWindow(nil)
-        }
-        NSApp.activate(ignoringOtherApps: true)
-    }
-}
-
-struct PermissionView: View {
-    let onLater: () -> Void
-    // After tapping "Open Settings", switch to restart-prompt state
-    @State private var didOpenSettings = false
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // App icon
-            Image("cat_idle")
-                .resizable()
-                .interpolation(.none)
-                .frame(width: 80, height: 80)
-                .background(Color(NSColor.controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
-                .padding(.top, 28)
-                .padding(.bottom, 18)
-
-            if didOpenSettings {
-                // --- After opening settings: prompt restart ---
-                Text("권한 설정 완료 후\n앱을 재시작해주세요")
-                    .font(.system(size: 16, weight: .bold))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 26)
-                    .padding(.bottom, 10)
-
-                Text("System Settings에서 catch-catch를\n활성화했다면 아래 버튼으로 재시작하세요.\n재시작 후 타자를 치면 고양이가 반응해요.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.primary.opacity(0.75))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(1.5)
-                    .padding(.horizontal, 26)
-                    .padding(.bottom, 22)
-
-                primaryButton(title: "앱 재시작") { restartApp() }
-                secondaryButton(title: "나중에") { onLater() }
-            } else {
-                // --- Initial state: explain & open settings ---
-                Text("Input Monitoring\nPermission Required")
-                    .font(.system(size: 16, weight: .bold))
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 26)
-                    .padding(.bottom, 10)
-
-                Text("catch-catch needs Input Monitoring permission to animate the cat when you type.\n\nPlease enable catch-catch in:\nSystem Settings → Privacy & Security\n→ Input Monitoring")
-                    .font(.system(size: 13))
-                    .foregroundColor(.primary.opacity(0.75))
-                    .multilineTextAlignment(.leading)
-                    .lineSpacing(1.5)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 26)
-                    .padding(.bottom, 22)
-
-                primaryButton(title: "Open System Settings") {
-                    GlobalEventMonitor.openInputMonitoringSettings()
-                    didOpenSettings = true  // switch to restart state
-                }
-                secondaryButton(title: "Later") { onLater() }
-            }
-        }
-        .frame(width: 380)
-        .background(Color(NSColor.windowBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-    }
-
-    private func primaryButton(title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 9)
-                .background(Color.accentColor)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 26)
-        .padding(.bottom, 8)
-    }
-
-    private func secondaryButton(title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 14))
-                .foregroundColor(.primary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 9)
-                .background(Color(NSColor.controlColor))
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 26)
-        .padding(.bottom, 26)
-    }
-
-    private func restartApp() {
-        guard let url = Bundle.main.bundleURL as URL? else { return }
-        NSWorkspace.shared.openApplication(at: url, configuration: .init()) { _, _ in }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { NSApp.terminate(nil) }
+        _ = GlobalEventMonitor.requestPermission()
     }
 }
 
@@ -251,8 +103,9 @@ class AppCoordinator: ObservableObject {
 
     private var multiScreen: MultiScreenCatController?
     private var stateThrottleTimer: Timer?
+    private var cancellables = Set<AnyCancellable>()
 
-    let serverURL = URL(string: "wss://catch-catch-server.up.railway.app")!
+    let serverURL = URL(string: "wss://catch.hannah-log.site")!
 
     init() {
         localCat.loadPosition()
@@ -271,18 +124,21 @@ class AppCoordinator: ObservableObject {
 
         setupEventMonitor()
         setupWebSocketHandlers()
-        PermissionWindowController.showIfNeeded()
+        PermissionAlert.showIfNeeded()
     }
 
     // MARK: - Event monitor
 
     private func setupEventMonitor() {
-        eventMonitor.onActivate = { [weak self] in
-            self?.localCat.activate()
-            self?.sendStateThrottled()
+        eventMonitor.onKeyboardActiveChanged = { [weak self] isActive in
+            guard let self, isActive else { return }  // keyDown만 반응, keyUp 무시
+            localCat.isActive ? localCat.deactivate() : localCat.activate()
+            sendStateThrottled()
         }
-        eventMonitor.onDeactivate = { [weak self] in
-            self?.sendStateThrottled()
+        eventMonitor.onMouseActiveChanged = { [weak self] isActive in
+            guard let self, isActive else { return }  // mouseDown만 반응, mouseUp 무시
+            localCat.isActive ? localCat.deactivate() : localCat.activate()
+            sendStateThrottled()
         }
         eventMonitor.start()
     }
