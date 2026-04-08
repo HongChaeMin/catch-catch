@@ -4,10 +4,11 @@ import Foundation
 
 enum ServerMessage {
     case joined(users: [JoinedUser])
-    case userJoined(userId: String, name: String)
+    case userJoined(userId: String, name: String, theme: String)
     case userLeft(userId: String)
     case stateUpdate(userId: String, x: Double, y: Double, isActive: Bool)
     case renamed(userId: String, name: String)
+    case themeChanged(userId: String, theme: String)
     case chat(userId: String, name: String, text: String)
     case error(message: String)
 }
@@ -18,6 +19,7 @@ struct JoinedUser {
     let x: Double
     let y: Double
     let isActive: Bool
+    let theme: String
 }
 
 // MARK: - Client
@@ -35,6 +37,8 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
     var onConnected: (() -> Void)?
     var onDisconnected: (() -> Void)?
     var onConnectionFailed: (() -> Void)?
+
+    var currentTheme: String = "cat"
 
     func connect(to url: URL, roomCode: String, userId: String, name: String) {
         pendingJoin = (url, roomCode, userId, name)
@@ -63,6 +67,10 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
 
     func sendRename(name: String) {
         send(["type": "rename", "name": name])
+    }
+
+    func sendTheme(theme: String) {
+        send(["type": "theme", "theme": theme])
     }
 
     private func send(_ dict: [String: Any]) {
@@ -100,14 +108,16 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
                     userId: id, name: name,
                     x: u["x"] as? Double ?? 0.85,
                     y: u["y"] as? Double ?? 0.85,
-                    isActive: u["active"] as? Bool ?? false
+                    isActive: u["active"] as? Bool ?? false,
+                    theme: u["theme"] as? String ?? "cat"
                 )
             }
             onMessage?(.joined(users: users))
 
         case "user_joined":
             if let userId = json["userId"] as? String, let name = json["name"] as? String {
-                onMessage?(.userJoined(userId: userId, name: name))
+                let theme = json["theme"] as? String ?? "cat"
+                onMessage?(.userJoined(userId: userId, name: name, theme: theme))
             }
 
         case "user_left":
@@ -128,6 +138,11 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
         case "renamed":
             if let userId = json["userId"] as? String, let name = json["name"] as? String {
                 onMessage?(.renamed(userId: userId, name: name))
+            }
+
+        case "theme":
+            if let userId = json["userId"] as? String, let theme = json["theme"] as? String {
+                onMessage?(.themeChanged(userId: userId, theme: theme))
             }
 
         case "chat":
@@ -174,7 +189,8 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
                 "type": "join",
                 "roomCode": pending.roomCode,
                 "userId": pending.userId,
-                "name": pending.name
+                "name": pending.name,
+                "theme": currentTheme
             ]
             send(msg)
         }

@@ -12,6 +12,7 @@ struct PeerCat: Identifiable {
     var x: Double
     var y: Double
     var isActive: Bool
+    var theme: CatTheme = .gray
     var bubbleMessages: [BubbleMessage] = []
 }
 
@@ -66,14 +67,21 @@ class RoomState: ObservableObject {
         }
     }
 
-    func upsertPeer(userId: String, name: String, x: Double, y: Double, isActive: Bool) {
+    func upsertPeer(userId: String, name: String, x: Double, y: Double, isActive: Bool, theme: CatTheme = .gray) {
         if let idx = peers.firstIndex(where: { $0.id == userId }) {
             peers[idx].x = x
             peers[idx].y = y
             peers[idx].isActive = isActive
             peers[idx].name = name
+            peers[idx].theme = theme
         } else {
-            peers.append(PeerCat(id: userId, name: name, x: x, y: y, isActive: isActive))
+            peers.append(PeerCat(id: userId, name: name, x: x, y: y, isActive: isActive, theme: theme))
+        }
+    }
+
+    func updatePeerTheme(userId: String, theme: CatTheme) {
+        if let idx = peers.firstIndex(where: { $0.id == userId }) {
+            peers[idx].theme = theme
         }
     }
 

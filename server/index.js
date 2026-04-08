@@ -30,7 +30,8 @@ wss.on('connection', (ws) => {
       }
 
       const room = rooms.get(roomCode);
-      room.set(userId, { ws, name, x: 0.85, y: 0.85, active: false });
+      const theme = typeof msg.theme === 'string' ? msg.theme : 'cat';
+      room.set(userId, { ws, name, x: 0.85, y: 0.85, active: false, theme });
 
       // Send current room members to the new joiner
       const users = [...room.entries()]
@@ -41,12 +42,13 @@ wss.on('connection', (ws) => {
           x: peer.x,
           y: peer.y,
           active: peer.active,
+          theme: peer.theme,
         }));
 
       safeSend(ws, { type: 'joined', users });
 
       // Notify others
-      broadcast(roomCode, userId, { type: 'user_joined', userId, name });
+      broadcast(roomCode, userId, { type: 'user_joined', userId, name, theme });
 
     } else if (type === 'state') {
       if (!userId || !roomCode) return;
@@ -67,6 +69,16 @@ wss.on('connection', (ws) => {
         y: msg.y,
         active: msg.active,
       });
+
+    } else if (type === 'theme') {
+      if (!userId || !roomCode) return;
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      const peer = room.get(userId);
+      if (!peer) return;
+      const newTheme = typeof msg.theme === 'string' ? msg.theme : 'cat';
+      peer.theme = newTheme;
+      broadcast(roomCode, userId, { type: 'theme', userId, theme: newTheme });
 
     } else if (type === 'rename') {
       if (!userId || !roomCode) return;

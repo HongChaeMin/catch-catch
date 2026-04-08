@@ -9,6 +9,7 @@ struct MenuBarContentView: View {
     let onLeaveRoom: () -> Void
     let onSendChat: (String) -> Void
     let onNameChanged: (String) -> Void
+    let onThemeChanged: (CatTheme) -> Void
     var isMoving: Bool
 
     @State private var roomCodeInput: String = ""
@@ -77,8 +78,7 @@ struct MenuBarContentView: View {
             HStack(spacing: 6) {
                 ForEach(CatTheme.allCases, id: \.self) { theme in
                     Button {
-                        roomState.selectedTheme = theme
-                        UserDefaults.standard.set(theme.rawValue, forKey: "catTheme")
+                        onThemeChanged(theme)
                     } label: {
                         Image(theme.idleImage)
                             .resizable()

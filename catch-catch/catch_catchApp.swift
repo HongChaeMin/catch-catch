@@ -297,7 +297,16 @@ class AppCoordinator: ObservableObject {
     func joinRoom(_ code: String) {
         roomState.connectionError = nil
         roomState.roomCode = code
+        wsClient.currentTheme = roomState.selectedTheme.rawValue
         wsClient.connect(to: serverURL, roomCode: code, userId: localCat.userId, name: localCat.name)
+    }
+
+    func changeTheme(_ theme: CatTheme) {
+        roomState.selectedTheme = theme
+        UserDefaults.standard.set(theme.rawValue, forKey: "catTheme")
+        if wsClient.isConnected {
+            wsClient.sendTheme(theme: theme.rawValue)
+        }
     }
 
     func leaveRoom() {
@@ -337,16 +346,21 @@ class AppCoordinator: ObservableObject {
         switch message {
         case .joined(let users):
             for u in users {
-                roomState.upsertPeer(userId: u.userId, name: u.name, x: u.x, y: u.y, isActive: u.isActive)
+                let theme = CatTheme(rawValue: u.theme) ?? .gray
+                roomState.upsertPeer(userId: u.userId, name: u.name, x: u.x, y: u.y, isActive: u.isActive, theme: theme)
             }
-        case .userJoined(let userId, let name):
-            roomState.upsertPeer(userId: userId, name: name, x: 0.85, y: 0.85, isActive: false)
+        case .userJoined(let userId, let name, let theme):
+            let catTheme = CatTheme(rawValue: theme) ?? .gray
+            roomState.upsertPeer(userId: userId, name: name, x: 0.85, y: 0.85, isActive: false, theme: catTheme)
         case .userLeft(let userId):
             roomState.removePeer(userId: userId)
         case .stateUpdate(let userId, let x, let y, let isActive):
             roomState.updatePeerState(userId: userId, x: x, y: y, isActive: isActive)
         case .renamed(let userId, let name):
             roomState.updatePeerName(userId: userId, name: name)
+        case .themeChanged(let userId, let theme):
+            let catTheme = CatTheme(rawValue: theme) ?? .gray
+            roomState.updatePeerTheme(userId: userId, theme: catTheme)
         case .chat(let userId, let name, let text):
             roomState.addMessage(userId: userId, name: name, text: text)
             if userId == localCat.userId {
@@ -395,6 +409,7 @@ struct CatchCatchApp: App {
                 onLeaveRoom: coordinator.leaveRoom,
                 onSendChat: coordinator.sendChat,
                 onNameChanged: coordinator.renameInRoom,
+                onThemeChanged: coordinator.changeTheme,
                 isMoving: coordinator.isMoving
             )
         }

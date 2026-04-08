@@ -9,12 +9,12 @@ struct SpeechBubble: View {
         Text(text)
             .font(.system(size: 12, weight: .medium))
             .foregroundColor(.white)
-            .lineLimit(4)
+            .lineLimit(3)
             .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .frame(maxWidth: 220)
+            .frame(maxWidth: 200)
+            .fixedSize(horizontal: true, vertical: true)
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color.black.opacity(0.78))
@@ -117,7 +117,7 @@ struct CatOverlayView: View {
                 isActive: peer.isActive,
                 name: peer.name,
                 isLocal: false,
-                theme: roomState.selectedTheme,
+                theme: peer.theme,
                 messages: peer.bubbleMessages
             )
             .position(
