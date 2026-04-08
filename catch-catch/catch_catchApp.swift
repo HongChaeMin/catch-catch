@@ -407,7 +407,6 @@ struct CatchCatchApp: App {
                 onToggleMove: coordinator.toggleMoveMode,
                 onJoinRoom: coordinator.joinRoom,
                 onLeaveRoom: coordinator.leaveRoom,
-                onSendChat: coordinator.sendChat,
                 onNameChanged: coordinator.renameInRoom,
                 onThemeChanged: coordinator.changeTheme,
                 isMoving: coordinator.isMoving

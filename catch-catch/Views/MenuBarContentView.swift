@@ -7,13 +7,11 @@ struct MenuBarContentView: View {
     let onToggleMove: () -> Void
     let onJoinRoom: (String) -> Void
     let onLeaveRoom: () -> Void
-    let onSendChat: (String) -> Void
     let onNameChanged: (String) -> Void
     let onThemeChanged: (CatTheme) -> Void
     var isMoving: Bool
 
     @State private var roomCodeInput: String = ""
-    @State private var chatInput: String = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -165,29 +163,28 @@ struct MenuBarContentView: View {
 
             // Peer list
             if !roomState.peers.isEmpty {
-                VStack(spacing: 4) {
-                    ForEach(roomState.peers) { peer in
-                        HStack(spacing: 8) {
-                            Circle()
-                                .fill(peer.isActive ? Color.green : Color.gray.opacity(0.3))
-                                .frame(width: 6, height: 6)
-                            Text(peer.name)
-                                .font(.system(size: 12))
-                                .foregroundColor(.primary)
-                            Spacer()
+                ScrollView {
+                    VStack(spacing: 4) {
+                        ForEach(roomState.peers) { peer in
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(peer.isActive ? Color.green : Color.gray.opacity(0.3))
+                                    .frame(width: 6, height: 6)
+                                Text(peer.name)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.primary)
+                                    .lineLimit(1)
+                                Spacer()
+                            }
+                            .padding(.vertical, 2)
+                            .padding(.horizontal, 6)
+                            .background(Color.secondary.opacity(0.05))
+                            .cornerRadius(6)
                         }
-                        .padding(.vertical, 2)
-                        .padding(.horizontal, 6)
-                        .background(Color.secondary.opacity(0.05))
-                        .cornerRadius(6)
                     }
                 }
+                .frame(maxHeight: 120)
             }
-
-            Divider()
-
-            // Chat
-            chatSection
 
             // Leave button
             Button(action: onLeaveRoom) {
@@ -200,71 +197,6 @@ struct MenuBarContentView: View {
             .foregroundColor(.red)
         }
         .padding(14)
-    }
-
-    // MARK: - Chat
-
-    private var chatSection: some View {
-        VStack(spacing: 6) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 4) {
-                        ForEach(roomState.messages) { msg in
-                            chatRow(msg).id(msg.id)
-                        }
-                    }
-                    .padding(.horizontal, 4)
-                    Color.clear.frame(height: 1).id("bottom")
-                }
-                .frame(maxHeight: 120)
-                .onChange(of: roomState.messages.count) { _ in
-                    withAnimation { proxy.scrollTo("bottom") }
-                }
-            }
-
-            HStack(spacing: 6) {
-                TextField("메시지 입력...", text: $chatInput)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12))
-                    .onSubmit { submitChat() }
-
-                Button(action: submitChat) {
-                    Image(systemName: "paperplane.fill")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(chatInput.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-        }
-    }
-
-    private func chatRow(_ msg: ChatMessage) -> some View {
-        let isMe = msg.userId == localCat.userId
-        return HStack(alignment: .top, spacing: 0) {
-            if isMe { Spacer(minLength: 20) }
-            VStack(alignment: isMe ? .trailing : .leading, spacing: 2) {
-                if !isMe {
-                    Text(msg.name)
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
-                }
-                Text(msg.text)
-                    .font(.system(size: 11))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(isMe ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(0.1))
-                    .cornerRadius(8)
-                    .textSelection(.enabled)
-            }
-            if !isMe { Spacer(minLength: 20) }
-        }
-    }
-
-    private func submitChat() {
-        let text = chatInput.trimmingCharacters(in: .whitespaces)
-        guard !text.isEmpty else { return }
-        onSendChat(text)
-        chatInput = ""
     }
 
     // MARK: - Join room
