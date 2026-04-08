@@ -55,26 +55,28 @@ struct CatWidget: View {
             .resizable()
             .interpolation(.none)
             .frame(width: 80, height: 80)
+            // 말풍선: 고양이 위로 쌓임
             .overlay(alignment: .top) {
-                // 말풍선/이름을 cat 위에 띄움. alignmentGuide로 child의 bottom을
-                // parent의 top에 붙여서 메시지가 늘어도 cat은 제자리, 말풍선만 위로 쌓임.
                 VStack(spacing: 4) {
                     ForEach(Array(messages.enumerated()), id: \.element.id) { index, msg in
                         SpeechBubble(text: msg.text, showTail: index == messages.count - 1)
-                    }
-                    if !isLocal {
-                        Text(name)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.black.opacity(0.5))
-                            .cornerRadius(6)
                     }
                 }
                 .fixedSize()
                 .alignmentGuide(.top) { d in d[.bottom] + 6 }
                 .animation(.easeOut(duration: 0.18), value: messages)
+            }
+            // 이름: 고양이 밑에 표시 (로컬/피어 모두)
+            .overlay(alignment: .bottom) {
+                Text(name)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.black.opacity(0.5))
+                    .cornerRadius(6)
+                    .fixedSize()
+                    .alignmentGuide(.bottom) { d in d[.top] - 6 }
             }
     }
 }

@@ -95,6 +95,7 @@ class ChatPanel {
         let size = CGSize(width: width, height: height)
 
         // catAbsPoint는 고양이 중심(absX, absY + 40), 이미지 80×80
+        // 이름 라벨이 고양이 밑에 ~20px, 인풋은 그 밑에 배치
         let catRect = CGRect(
             x: catAbsPoint.x - 40, y: catAbsPoint.y - 40,
             width: 80, height: 80
@@ -102,17 +103,20 @@ class ChatPanel {
 
         let screen = NSScreen.screens.first { $0.frame.contains(catAbsPoint) } ?? NSScreen.main
         let vf = screen?.visibleFrame ?? .zero
-        let gap: CGFloat = 28
+        let nameHeight: CGFloat = 22  // 이름 라벨 높이
+        let gap: CGFloat = 10
 
-        // 후보: 아래 → 위 → 오른쪽. 고양이와 안 겹치고 visibleFrame 내에 완전히 들어가는 첫 번째.
+        // 기본: 고양이 밑 → 이름 밑 → 인풋
+        // 후보: 아래(이름 아래) → 위 → 오른쪽
+        let belowNameY = catRect.minY - nameHeight - gap - height
         let candidates: [NSPoint] = [
-            NSPoint(x: catAbsPoint.x - width / 2, y: catRect.minY - height - gap),
+            NSPoint(x: catAbsPoint.x - width / 2, y: belowNameY),
             NSPoint(x: catAbsPoint.x - width / 2, y: catRect.maxY + gap),
             NSPoint(x: catRect.maxX + gap, y: catAbsPoint.y - height / 2),
         ]
         let picked = candidates.first { origin in
             let r = CGRect(origin: origin, size: size)
-            return vf.contains(r) && !r.intersects(catRect)
+            return vf.contains(r)
         } ?? candidates[0]
 
         // 최종 안전망: visibleFrame 내로 클램프
@@ -193,6 +197,7 @@ class AppCoordinator: ObservableObject {
     let roomState = RoomState()
     let eventMonitor = GlobalEventMonitor()
     let wsClient = WebSocketClient()
+    let updateChecker = UpdateChecker()
 
     @Published var isMoving = false
 
@@ -222,6 +227,7 @@ class AppCoordinator: ObservableObject {
         setupWebSocketHandlers()
         setupChatPanel()
         PermissionAlert.showIfNeeded()
+        updateChecker.check()
     }
 
     // MARK: - Chat panel (click on cat)
@@ -404,6 +410,7 @@ struct CatchCatchApp: App {
             MenuBarContentView(
                 roomState: coordinator.roomState,
                 localCat: coordinator.localCat,
+                updateChecker: coordinator.updateChecker,
                 onToggleMove: coordinator.toggleMoveMode,
                 onJoinRoom: coordinator.joinRoom,
                 onLeaveRoom: coordinator.leaveRoom,

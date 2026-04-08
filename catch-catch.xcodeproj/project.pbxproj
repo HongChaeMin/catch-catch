@@ -14,6 +14,7 @@
 		9D89390719255E941E4F6128 /* catch_catchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DA8DBD6845B2C74AD8810E9 /* catch_catchApp.swift */; };
 		BB0924A0530104DA4836B910 /* CatOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC757362E5F3E47603CA0360 /* CatOverlayView.swift */; };
 		C0A5154BB383266E848D1412 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C2076EE4A4906A65ABFE69EE /* Assets.xcassets */; };
+		C5B6AFF9AEC92B2C633458CA /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CB2539B914DCB05EBE05506 /* UpdateChecker.swift */; };
 		E367859137AEA156C771C919 /* RoomState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28D087B49C775325526AE1C1 /* RoomState.swift */; };
 /* End PBXBuildFile section */
 
@@ -25,6 +26,7 @@
 		6847D83403FDEAC843C72E71 /* catch-catch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "catch-catch.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		7B399FA0A84E7B0160C4FABC /* MenuBarContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContentView.swift; sourceTree = "<group>"; };
 		7DA8DBD6845B2C74AD8810E9 /* catch_catchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = catch_catchApp.swift; sourceTree = "<group>"; };
+		8CB2539B914DCB05EBE05506 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
 		BC757362E5F3E47603CA0360 /* CatOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatOverlayView.swift; sourceTree = "<group>"; };
 		C2076EE4A4906A65ABFE69EE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E9CCF82C2065AD49F14EBF75 /* catch-catch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "catch-catch.entitlements"; sourceTree = "<group>"; };
@@ -44,6 +46,7 @@
 			isa = PBXGroup;
 			children = (
 				04F876CD18CA28BBC6F97600 /* GlobalEventMonitor.swift */,
+				8CB2539B914DCB05EBE05506 /* UpdateChecker.swift */,
 				58E8229DC4149570B87D96D4 /* WebSocketClient.swift */,
 			);
 			path = Managers;
@@ -164,6 +167,7 @@
 				591F4085A8E673D9F9886C80 /* GlobalEventMonitor.swift in Sources */,
 				06518B75DAAC604DBF5910D1 /* MenuBarContentView.swift in Sources */,
 				E367859137AEA156C771C919 /* RoomState.swift in Sources */,
+				C5B6AFF9AEC92B2C633458CA /* UpdateChecker.swift in Sources */,
 				4694E3670E2CE0794F3CE03B /* WebSocketClient.swift in Sources */,
 				9D89390719255E941E4F6128 /* catch_catchApp.swift in Sources */,
 			);
@@ -178,7 +182,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "catch-catch/catch-catch.entitlements";
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = BN55DYU669;
 				INFOPLIST_FILE = "catch-catch/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -225,7 +228,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = BN55DYU669;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -291,7 +293,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = BN55DYU669;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -320,7 +321,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "catch-catch/catch-catch.entitlements";
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = BN55DYU669;
 				INFOPLIST_FILE = "catch-catch/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

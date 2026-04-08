@@ -4,6 +4,7 @@ import AppKit
 struct MenuBarContentView: View {
     @ObservedObject var roomState: RoomState
     @ObservedObject var localCat: CatState
+    @ObservedObject var updateChecker: UpdateChecker
     let onToggleMove: () -> Void
     let onJoinRoom: (String) -> Void
     let onLeaveRoom: () -> Void
@@ -240,15 +241,39 @@ struct MenuBarContentView: View {
     // MARK: - Bottom bar
 
     private var bottomBar: some View {
-        HStack {
-            Text("catch-catch")
-                .font(.system(size: 10))
-                .foregroundColor(Color.secondary.opacity(0.5))
-            Spacer()
-            Button("종료") { NSApp.terminate(nil) }
+        VStack(spacing: 6) {
+            if updateChecker.hasUpdate, let version = updateChecker.latestVersion {
+                Button {
+                    if let url = updateChecker.downloadURL {
+                        NSWorkspace.shared.open(url)
+                    } else {
+                        NSWorkspace.shared.open(URL(string: "https://github.com/HongChaeMin/catch-catch/releases/latest")!)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 10))
+                        Text("v\(version) 업데이트 가능")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundColor(.accentColor)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 5)
+                    .background(Color.accentColor.opacity(0.1))
+                    .cornerRadius(6)
+                }
                 .buttonStyle(.plain)
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+            }
+            HStack {
+                Text("catch-catch v\(updateChecker.currentVersion)")
+                    .font(.system(size: 10))
+                    .foregroundColor(Color.secondary.opacity(0.5))
+                Spacer()
+                Button("종료") { NSApp.terminate(nil) }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
