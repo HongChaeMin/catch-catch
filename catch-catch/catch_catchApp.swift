@@ -76,6 +76,7 @@ final class KeyableChatPanel: NSPanel {
 class ChatPanel {
     private var panel: NSPanel?
     var onSendChat: ((String) -> Void)?
+    var onVisibilityChanged: ((Bool) -> Void)?
 
     var isVisible: Bool { panel != nil }
 
@@ -103,14 +104,13 @@ class ChatPanel {
 
         let screen = NSScreen.screens.first { $0.frame.contains(catAbsPoint) } ?? NSScreen.main
         let vf = screen?.visibleFrame ?? .zero
-        let nameHeight: CGFloat = 22  // 이름 라벨 높이
-        let gap: CGFloat = 10
+        let gap: CGFloat = 2
 
-        // 기본: 고양이 밑 → 이름 밑 → 인풋
-        // 후보: 아래(이름 아래) → 위 → 오른쪽
-        let belowNameY = catRect.minY - nameHeight - gap - height
+        // catRect.minY는 고양이 중심(catAbsPoint이 고양이 상단이므로), 실제 하단은 -40 더
+        let catBottomScreen = catRect.minY - 40
+        let belowCatY = catBottomScreen - gap - height
         let candidates: [NSPoint] = [
-            NSPoint(x: catAbsPoint.x - width / 2, y: belowNameY),
+            NSPoint(x: catAbsPoint.x - width / 2, y: belowCatY),
             NSPoint(x: catAbsPoint.x - width / 2, y: catRect.maxY + gap),
             NSPoint(x: catRect.maxX + gap, y: catAbsPoint.y - height / 2),
         ]
@@ -155,11 +155,14 @@ class ChatPanel {
         self.panel = p
         p.orderFrontRegardless()
         p.makeKey()
+        onVisibilityChanged?(true)
     }
 
     func hide() {
+        guard panel != nil else { return }
         panel?.orderOut(nil)
         panel = nil
+        onVisibilityChanged?(false)
     }
 }
 
@@ -237,6 +240,9 @@ class AppCoordinator: ObservableObject {
     private func setupChatPanel() {
         chatPanel.onSendChat = { [weak self] text in
             self?.sendChat(text)
+        }
+        chatPanel.onVisibilityChanged = { [weak self] visible in
+            self?.localCat.isChatOpen = visible
         }
 
         // 글로벌 모니터는 앱 외부로 향하는 이벤트만 잡음.

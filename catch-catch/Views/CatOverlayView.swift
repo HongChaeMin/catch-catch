@@ -49,6 +49,7 @@ struct CatWidget: View {
     let isLocal: Bool
     let theme: CatTheme
     let messages: [BubbleMessage]
+    var isChatOpen: Bool = false
 
     var body: some View {
         Image(isActive ? theme.activeImage : theme.idleImage)
@@ -66,7 +67,7 @@ struct CatWidget: View {
                 .alignmentGuide(.top) { d in d[.bottom] + 6 }
                 .animation(.easeOut(duration: 0.18), value: messages)
             }
-            // 이름: 고양이 밑에 표시 (로컬/피어 모두)
+            // 이름: 고양이 바로 밑 (채팅 인풋 열리면 더 밑으로)
             .overlay(alignment: .bottom) {
                 Text(name)
                     .font(.system(size: 11, weight: .medium))
@@ -76,7 +77,9 @@ struct CatWidget: View {
                     .background(Color.black.opacity(0.5))
                     .cornerRadius(6)
                     .fixedSize()
-                    .alignmentGuide(.bottom) { d in d[.top] - 6 }
+                    .alignmentGuide(.bottom) { d in d[.top] - 2 }
+                    .offset(y: isChatOpen ? 42 : 0)
+                    .animation(.easeOut(duration: 0.15), value: isChatOpen)
             }
     }
 }
@@ -107,7 +110,8 @@ struct CatOverlayView: View {
                 name: localCat.name,
                 isLocal: true,
                 theme: roomState.selectedTheme,
-                messages: localCat.bubbleMessages
+                messages: localCat.bubbleMessages,
+                isChatOpen: localCat.isChatOpen
             )
             widget.position(x: localX, y: localY)
         }

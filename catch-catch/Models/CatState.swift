@@ -7,6 +7,7 @@ class CatState: ObservableObject {
     @Published var absY: Double
     @Published var isActive: Bool = false
     @Published var bubbleMessages: [BubbleMessage] = []
+    @Published var isChatOpen: Bool = false
 
     let userId: String
     var name: String
