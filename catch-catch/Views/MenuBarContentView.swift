@@ -5,7 +5,6 @@ struct MenuBarContentView: View {
     @ObservedObject var roomState: RoomState
     @ObservedObject var localCat: CatState
     @ObservedObject var updateChecker: UpdateChecker
-    let onToggleMove: () -> Void
     let onJoinRoom: (String) -> Void
     let onLeaveRoom: () -> Void
     let onNameChanged: (String) -> Void
@@ -13,7 +12,6 @@ struct MenuBarContentView: View {
     let onShowNameChanged: (Bool) -> Void
     let onSyncPositionChanged: (Bool) -> Void
     let onPowerModeChanged: (Bool) -> Void
-    var isMoving: Bool
 
     @State private var roomCodeInput: String = ""
 
@@ -55,17 +53,6 @@ struct MenuBarContentView: View {
             }
 
             Spacer()
-
-            Button(action: onToggleMove) {
-                Image(systemName: isMoving ? "lock.fill" : "arrow.up.and.down.and.arrow.left.and.right")
-                    .font(.system(size: 13))
-                    .frame(width: 28, height: 28)
-                    .background(isMoving ? Color.orange.opacity(0.2) : Color.secondary.opacity(0.1))
-                    .foregroundColor(isMoving ? .orange : .secondary)
-                    .clipShape(RoundedRectangle(cornerRadius: 7))
-            }
-            .buttonStyle(.plain)
-            .help(isMoving ? "위치 고정" : "고양이 이동")
         }
         .padding(14)
     }

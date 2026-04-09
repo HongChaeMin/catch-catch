@@ -210,7 +210,7 @@ class AppCoordinator: ObservableObject {
     let wsClient = WebSocketClient()
     let updateChecker = UpdateChecker()
 
-    @Published var isMoving = false
+    private var isMoving = false
 
     private var multiScreen: MultiScreenCatController?
     private let chatPanel = ChatPanel()
@@ -239,44 +239,10 @@ class AppCoordinator: ObservableObject {
 
         setupEventMonitor()
         setupWebSocketHandlers()
-        setupChatPanel()
+        setupAlwaysDrag()
         startSleepTimer()
         PermissionAlert.showIfNeeded()
         updateChecker.check()
-    }
-
-    // MARK: - Chat panel (click on cat)
-
-    private var catClickMonitor: Any?
-
-    private func setupChatPanel() {
-        chatPanel.onSendChat = { [weak self] text in
-            self?.sendChat(text)
-        }
-        chatPanel.onVisibilityChanged = { [weak self] visible in
-            self?.localCat.isChatOpen = visible
-        }
-
-        // 글로벌 모니터는 앱 외부로 향하는 이벤트만 잡음.
-        // 채팅 패널을 클릭하면 패널이 이벤트를 소비하므로 여기선 안 걸림 → 안전하게 outside-click dismiss 가능.
-        catClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
-            guard let self, roomState.isConnected, !isMoving else { return }
-            let clickPoint = NSEvent.mouseLocation
-            // 고양이 이미지는 80x80, 중심이 (absX, absY)에서 위쪽 40px
-            let catCenter = CGPoint(x: localCat.absX, y: localCat.absY + 40)
-            let dx = clickPoint.x - catCenter.x
-            let dy = clickPoint.y - catCenter.y
-            let isCatClick = abs(dx) < 40 && abs(dy) < 40
-
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                if isCatClick {
-                    chatPanel.toggle(near: CGPoint(x: localCat.absX, y: localCat.absY + 40))
-                } else if chatPanel.isVisible {
-                    chatPanel.hide()
-                }
-            }
-        }
     }
 
     // MARK: - Event monitor
@@ -298,52 +264,107 @@ class AppCoordinator: ObservableObject {
         eventMonitor.start()
     }
 
-    // MARK: - Move mode
+    // MARK: - Always-drag (click near cat to drag, click to chat)
 
+    private var alwaysDragMonitor: Any?
     private var draggingPeerIndex: Int? = nil
+    private var dragStartPoint: CGPoint? = nil
+    private static let dragThreshold: CGFloat = 5
 
-    func toggleMoveMode() {
-        isMoving.toggle()
-        if isMoving {
-            multiScreen?.setIgnoresMouseEvents(false)
-            eventMonitor.startDragTracking(
-                onDown: { [weak self] clickPoint in
-                    guard let self else { return }
-                    draggingPeerIndex = findClosestPeer(to: clickPoint)
-                },
-                onDrag: { [weak self] absPoint in
-                    guard let self else { return }
-                    if let idx = draggingPeerIndex {
-                        // peer 드래그 (로컬만)
-                        let screen = NSScreen.main ?? NSScreen.screens[0]
-                        let normX = (Double(absPoint.x) - Double(screen.frame.minX)) / Double(screen.frame.width)
-                        let normY = (Double(absPoint.y) - Double(screen.frame.minY)) / Double(screen.frame.height)
-                        roomState.peers[idx].x = max(0, min(1, normX))
-                        roomState.peers[idx].y = max(0, min(1, 1.0 - normY))
-                    } else {
-                        // local cat 드래그
-                        localCat.setAbsPosition(absPoint)
-                        if wsClient.isConnected, localCat.syncPosition {
-                            let net = localCat.networkPosition
-                            wsClient.sendState(x: net.x, y: net.y, isActive: localCat.isActive, combo: localCat.comboCount, sleeping: localCat.isSleeping)
-                        }
+    /// Set up a permanent global mouseDown monitor. When the click lands near a cat,
+    /// enter drag mode. On mouseUp: if movement < threshold → treat as click (toggle chat).
+    private func setupAlwaysDrag() {
+        chatPanel.onSendChat = { [weak self] text in
+            self?.sendChat(text)
+        }
+        chatPanel.onVisibilityChanged = { [weak self] visible in
+            self?.localCat.isChatOpen = visible
+        }
+
+        alwaysDragMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
+            guard let self else { return }
+            let clickPoint = NSEvent.mouseLocation
+
+            // Check if click is near any cat (local or peer)
+            let isNearCat = isClickNearAnyCat(clickPoint)
+            guard isNearCat else {
+                // Click not near any cat — dismiss chat if open
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, chatPanel.isVisible else { return }
+                    chatPanel.hide()
+                }
+                return
+            }
+
+            // Click is near a cat — start drag tracking
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.beginCatDrag(from: clickPoint)
+            }
+        }
+    }
+
+    /// Returns true if the click point is within range of any cat (local or peer).
+    /// Reuses findClosestPeer distance logic — local cat is always checked there too.
+    private func isClickNearAnyCat(_ point: CGPoint) -> Bool {
+        let localCenter = CGPoint(x: localCat.absX, y: localCat.absY + 40)
+        if hypot(point.x - localCenter.x, point.y - localCenter.y) < 40 { return true }
+        // findClosestPeer returns non-nil only if a peer is within 60px AND closer than local
+        // So also check peers directly with the same 40px threshold
+        return findClosestPeer(to: point) != nil
+    }
+
+    /// Enter drag mode: enable overlay mouse events, record start point, install drag monitors.
+    private func beginCatDrag(from clickPoint: CGPoint) {
+        isMoving = true
+        dragStartPoint = clickPoint
+        draggingPeerIndex = findClosestPeer(to: clickPoint)
+        multiScreen?.setIgnoresMouseEvents(false)
+
+        eventMonitor.startDragTracking(
+            onDown: { _ in },  // already handled above
+            onDrag: { [weak self] absPoint in
+                guard let self else { return }
+                if let idx = draggingPeerIndex {
+                    let screen = NSScreen.main ?? NSScreen.screens[0]
+                    let normX = (Double(absPoint.x) - Double(screen.frame.minX)) / Double(screen.frame.width)
+                    let normY = (Double(absPoint.y) - Double(screen.frame.minY)) / Double(screen.frame.height)
+                    roomState.peers[idx].x = max(0, min(1, normX))
+                    roomState.peers[idx].y = max(0, min(1, 1.0 - normY))
+                } else {
+                    localCat.setAbsPosition(absPoint)
+                    if wsClient.isConnected, localCat.syncPosition {
+                        let net = localCat.networkPosition
+                        wsClient.sendState(x: net.x, y: net.y, isActive: localCat.isActive, combo: localCat.comboCount, sleeping: localCat.isSleeping)
                     }
-                },
-                onEnd: { [weak self] in
-                    guard let self else { return }
-                    if draggingPeerIndex != nil {
-                        draggingPeerIndex = nil
-                    } else {
+                }
+            },
+            onEnd: { [weak self] in
+                guard let self else { return }
+                let endPoint = NSEvent.mouseLocation
+                let startPoint = dragStartPoint ?? endPoint
+                let distance = hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y)
+
+                if distance < Self.dragThreshold {
+                    // Click (not drag) → toggle chat if connected
+                    if roomState.isConnected {
+                        chatPanel.toggle(near: CGPoint(x: localCat.absX, y: localCat.absY + 40))
+                    }
+                } else {
+                    // Drag completed → save position
+                    if draggingPeerIndex == nil {
                         localCat.savePosition()
                     }
                 }
-            )
-        } else {
-            multiScreen?.setIgnoresMouseEvents(true)
-            eventMonitor.stopDragTracking()
-            localCat.savePosition()
-            draggingPeerIndex = nil
-        }
+
+                // Restore overlay passthrough
+                multiScreen?.setIgnoresMouseEvents(true)
+                eventMonitor.stopDragTracking()
+                isMoving = false
+                draggingPeerIndex = nil
+                dragStartPoint = nil
+            }
+        )
     }
 
     private func findClosestPeer(to point: CGPoint) -> Int? {
@@ -537,15 +558,13 @@ struct CatchCatchApp: App {
                 roomState: coordinator.roomState,
                 localCat: coordinator.localCat,
                 updateChecker: coordinator.updateChecker,
-                onToggleMove: coordinator.toggleMoveMode,
                 onJoinRoom: coordinator.joinRoom,
                 onLeaveRoom: coordinator.leaveRoom,
                 onNameChanged: coordinator.renameInRoom,
                 onThemeChanged: coordinator.changeTheme,
                 onShowNameChanged: coordinator.setShowName,
                 onSyncPositionChanged: coordinator.setSyncPosition,
-                onPowerModeChanged: coordinator.setPowerMode,
-                isMoving: coordinator.isMoving
+                onPowerModeChanged: coordinator.setPowerMode
             )
         }
         .menuBarExtraStyle(.window)
