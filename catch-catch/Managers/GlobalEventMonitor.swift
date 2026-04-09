@@ -13,6 +13,9 @@ final class GlobalEventMonitor: ObservableObject {
     private var dragMouseDownMonitor: Any?
     private var dragMoveMonitor: Any?
     private var dragMouseUpMonitor: Any?
+    private var dragLocalMouseDownMonitor: Any?
+    private var dragLocalMoveMonitor: Any?
+    private var dragLocalMouseUpMonitor: Any?
     private var isDragging = false
 
     private var permissionPollTimer: Timer?
@@ -197,6 +200,7 @@ final class GlobalEventMonitor: ObservableObject {
     func startDragTracking(onDown: @escaping (CGPoint) -> Void, onDrag: @escaping (CGPoint) -> Void, onEnd: @escaping () -> Void) {
         stopDragTracking()
 
+        // Global monitors: catch events targeting other apps
         dragMouseDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
             self?.isDragging = true
             let loc = NSEvent.mouseLocation
@@ -212,15 +216,40 @@ final class GlobalEventMonitor: ObservableObject {
             self?.isDragging = false
             DispatchQueue.main.async { onEnd() }
         }
+
+        // Local monitors: catch events captured by our own overlay windows
+        // (when ignoresMouseEvents = false during move mode)
+        dragLocalMouseDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            self?.isDragging = true
+            let loc = NSEvent.mouseLocation
+            DispatchQueue.main.async { onDown(loc) }
+            return event
+        }
+        dragLocalMoveMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDragged) { [weak self] event in
+            guard self?.isDragging == true else { return event }
+            let loc = NSEvent.mouseLocation
+            DispatchQueue.main.async { onDrag(loc) }
+            return event
+        }
+        dragLocalMouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { [weak self] event in
+            guard self?.isDragging == true else { return event }
+            self?.isDragging = false
+            DispatchQueue.main.async { onEnd() }
+            return event
+        }
     }
 
     func stopDragTracking() {
-        [dragMouseDownMonitor, dragMoveMonitor, dragMouseUpMonitor]
+        [dragMouseDownMonitor, dragMoveMonitor, dragMouseUpMonitor,
+         dragLocalMouseDownMonitor, dragLocalMoveMonitor, dragLocalMouseUpMonitor]
             .compactMap { $0 }
             .forEach { NSEvent.removeMonitor($0) }
         dragMouseDownMonitor = nil
         dragMoveMonitor = nil
         dragMouseUpMonitor = nil
+        dragLocalMouseDownMonitor = nil
+        dragLocalMoveMonitor = nil
+        dragLocalMouseUpMonitor = nil
         isDragging = false
     }
 

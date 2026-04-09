@@ -6,12 +6,19 @@ class CatState: ObservableObject {
     @Published var absX: Double
     @Published var absY: Double
     @Published var isActive: Bool = false
+    @Published var isSleeping: Bool = false
     @Published var bubbleMessages: [BubbleMessage] = []
     @Published var isChatOpen: Bool = false
     @Published var showName: Bool = UserDefaults.standard.object(forKey: "showName") as? Bool ?? true
     @Published var syncPosition: Bool = UserDefaults.standard.object(forKey: "syncPosition") as? Bool ?? true
+    @Published var powerMode: Bool = UserDefaults.standard.object(forKey: "powerMode") as? Bool ?? true
     @Published var keystrokeCount: Int = UserDefaults.standard.integer(forKey: "keystrokeCount")
     @Published var keystrokeDate: String = UserDefaults.standard.string(forKey: "keystrokeDate") ?? ""
+
+    // Power mode
+    @Published var comboCount: Int = 0
+    @Published var particles: [CatParticle] = []
+    private var comboResetTimer: Timer?
 
     func incrementKeystroke() {
         let today = Self.todayString()
@@ -20,6 +27,43 @@ class CatState: ObservableObject {
             keystrokeDate = today
         }
         keystrokeCount += 1
+        bumpCombo()
+    }
+
+    private func bumpCombo() {
+        guard powerMode else { return }
+        comboCount += 1
+        spawnParticles()
+        comboResetTimer?.invalidate()
+        comboResetTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            self?.comboCount = 0
+        }
+    }
+
+    private func spawnParticles() {
+        let count = min(3 + comboCount / 10, 8)
+        for _ in 0..<count {
+            let p = CatParticle(
+                startX: Double.random(in: -30...30),
+                dx: Double.random(in: -15...15),
+                dy: Double.random(in: -50...(-15)),
+                color: .randomForTier(comboCount)
+            )
+            particles.append(p)
+        }
+        // 오래된 파티클 정리
+        let cutoff = Date().addingTimeInterval(-0.8)
+        particles.removeAll { $0.created < cutoff }
+    }
+
+    var comboColor: CatParticleColor {
+        switch comboCount {
+        case 0..<30: return .cyan
+        case 30..<60: return .green
+        case 60..<100: return .orange
+        case 100..<150: return .red
+        default: return .pink
+        }
     }
 
     func saveKeystrokeCount() {

@@ -6,6 +6,30 @@ struct BubbleMessage: Identifiable, Equatable {
     let text: String
 }
 
+enum CatParticleColor: CaseIterable {
+    case cyan, blue, green, yellow, orange, red, pink, white
+
+    static func randomForTier(_ combo: Int) -> CatParticleColor {
+        let pool: [CatParticleColor] = switch combo {
+        case 0..<30: [.cyan, .blue, .white]
+        case 30..<60: [.green, .cyan, .yellow]
+        case 60..<100: [.yellow, .orange, .pink]
+        case 100..<150: [.orange, .red, .pink]
+        default: [.red, .pink, .orange]
+        }
+        return pool.randomElement()!
+    }
+}
+
+struct CatParticle: Identifiable {
+    let id = UUID()
+    let startX: Double  // 시작 x 오프셋 (고양이 너비 범위)
+    let dx: Double      // 수평 드리프트
+    let dy: Double      // 수직 이동 (음수 = 위)
+    let color: CatParticleColor
+    let created = Date()
+}
+
 struct PeerCat: Identifiable {
     let id: String  // userId
     var name: String
@@ -14,6 +38,9 @@ struct PeerCat: Identifiable {
     var isActive: Bool
     var theme: CatTheme = .gray
     var bubbleMessages: [BubbleMessage] = []
+    var isSleeping: Bool = false
+    var comboCount: Int = 0
+    var particles: [CatParticle] = []
 }
 
 struct ChatMessage: Identifiable {
@@ -27,6 +54,7 @@ enum CatTheme: String, CaseIterable {
     case gray = "cat"
     case gray2 = "cat2"
     case calico = "cat3"
+    case calico2 = "cat4"
 
     var idleImage: String { "\(rawValue)_idle" }
     var activeImage: String { "\(rawValue)_active" }
@@ -36,6 +64,7 @@ enum CatTheme: String, CaseIterable {
         case .gray: return "회색 고양이"
         case .gray2: return "흰색 고양이"
         case .calico: return "삼색 고양이"
+        case .calico2: return "삼색 고양이 2"
         }
     }
 }
@@ -96,6 +125,34 @@ class RoomState: ObservableObject {
     func updatePeerActive(userId: String, isActive: Bool) {
         if let idx = peers.firstIndex(where: { $0.id == userId }) {
             peers[idx].isActive = isActive
+        }
+    }
+
+    func updatePeerSleeping(userId: String, isSleeping: Bool) {
+        if let idx = peers.firstIndex(where: { $0.id == userId }) {
+            peers[idx].isSleeping = isSleeping
+        }
+    }
+
+    func updatePeerCombo(userId: String, combo: Int) {
+        guard let idx = peers.firstIndex(where: { $0.id == userId }) else { return }
+        let oldCombo = peers[idx].comboCount
+        peers[idx].comboCount = combo
+        // 콤보가 증가하면 파티클 스폰
+        if combo > oldCombo {
+            let count = min(3 + combo / 10, 8)
+            for _ in 0..<count {
+                peers[idx].particles.append(CatParticle(
+                    startX: Double.random(in: -30...30),
+                    dx: Double.random(in: -15...15),
+                    dy: Double.random(in: -50...(-15)),
+                    color: .randomForTier(combo)
+                ))
+            }
+            let cutoff = Date().addingTimeInterval(-0.8)
+            peers[idx].particles.removeAll { $0.created < cutoff }
+        } else if combo == 0 {
+            peers[idx].particles.removeAll()
         }
     }
 

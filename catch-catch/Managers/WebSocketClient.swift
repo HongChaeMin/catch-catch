@@ -6,7 +6,7 @@ enum ServerMessage {
     case joined(users: [JoinedUser])
     case userJoined(userId: String, name: String, theme: String)
     case userLeft(userId: String)
-    case stateUpdate(userId: String, x: Double, y: Double, isActive: Bool)
+    case stateUpdate(userId: String, x: Double, y: Double, isActive: Bool, combo: Int, sleeping: Bool)
     case renamed(userId: String, name: String)
     case themeChanged(userId: String, theme: String)
     case chat(userId: String, name: String, text: String)
@@ -56,8 +56,10 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
         isConnected = false
     }
 
-    func sendState(x: Double, y: Double, isActive: Bool) {
-        let msg: [String: Any] = ["type": "state", "x": x, "y": y, "active": isActive]
+    func sendState(x: Double, y: Double, isActive: Bool, combo: Int = 0, sleeping: Bool = false) {
+        var msg: [String: Any] = ["type": "state", "x": x, "y": y, "active": isActive]
+        if combo > 0 { msg["combo"] = combo }
+        if sleeping { msg["sleeping"] = true }
         send(msg)
     }
 
@@ -131,7 +133,9 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
                     userId: userId,
                     x: json["x"] as? Double ?? 0.5,
                     y: json["y"] as? Double ?? 0.5,
-                    isActive: json["active"] as? Bool ?? false
+                    isActive: json["active"] as? Bool ?? false,
+                    combo: json["combo"] as? Int ?? 0,
+                    sleeping: json["sleeping"] as? Bool ?? false
                 ))
             }
 

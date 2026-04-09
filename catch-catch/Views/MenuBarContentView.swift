@@ -12,6 +12,7 @@ struct MenuBarContentView: View {
     let onThemeChanged: (CatTheme) -> Void
     let onShowNameChanged: (Bool) -> Void
     let onSyncPositionChanged: (Bool) -> Void
+    let onPowerModeChanged: (Bool) -> Void
     var isMoving: Bool
 
     @State private var roomCodeInput: String = ""
@@ -83,6 +84,13 @@ struct MenuBarContentView: View {
             Toggle("위치 동기화", isOn: Binding(
                 get: { localCat.syncPosition },
                 set: { onSyncPositionChanged($0) }
+            ))
+            .font(.system(size: 12))
+            .toggleStyle(.checkbox)
+
+            Toggle("파워 모드", isOn: Binding(
+                get: { localCat.powerMode },
+                set: { onPowerModeChanged($0) }
             ))
             .font(.system(size: 12))
             .toggleStyle(.checkbox)

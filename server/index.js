@@ -69,6 +69,7 @@ wss.on('connection', (ws) => {
         y: msg.y,
         active: msg.active,
         combo: msg.combo,
+        sleeping: msg.sleeping,
       });
 
     } else if (type === 'theme') {

@@ -62,6 +62,10 @@ class CatWindowController: NSObject, NSWindowDelegate {
         window?.contentView = nil
         window = nil
     }
+
+    func setIgnoresMouseEvents(_ ignores: Bool) {
+        window?.ignoresMouseEvents = ignores
+    }
 }
 
 // MARK: - Floating chat panel
@@ -191,6 +195,10 @@ class MultiScreenCatController {
         controllers.forEach { $0.hide() }
         controllers.removeAll()
     }
+
+    func setIgnoresMouseEvents(_ ignores: Bool) {
+        controllers.forEach { $0.setIgnoresMouseEvents(ignores) }
+    }
 }
 
 // MARK: - App Coordinator
@@ -207,6 +215,9 @@ class AppCoordinator: ObservableObject {
     private var multiScreen: MultiScreenCatController?
     private let chatPanel = ChatPanel()
     private var stateThrottleTimer: Timer?
+    private var sleepTimer: Timer?
+    private var lastActivityDate = Date()
+    private static let sleepTimeout: TimeInterval = 30
     private var cancellables = Set<AnyCancellable>()
 
     let serverURL = URL(string: "wss://catch.hannah-log.site")!
@@ -229,6 +240,7 @@ class AppCoordinator: ObservableObject {
         setupEventMonitor()
         setupWebSocketHandlers()
         setupChatPanel()
+        startSleepTimer()
         PermissionAlert.showIfNeeded()
         updateChecker.check()
     }
@@ -272,12 +284,14 @@ class AppCoordinator: ObservableObject {
     private func setupEventMonitor() {
         eventMonitor.onKeyboardActiveChanged = { [weak self] isActive in
             guard let self, isActive else { return }  // keyDown만 반응, keyUp 무시
+            recordActivity()
             localCat.incrementKeystroke()
             localCat.isActive ? localCat.deactivate() : localCat.activate()
             sendStateThrottled()
         }
         eventMonitor.onMouseActiveChanged = { [weak self] isActive in
             guard let self, isActive else { return }  // mouseDown만 반응, mouseUp 무시
+            recordActivity()
             localCat.isActive ? localCat.deactivate() : localCat.activate()
             sendStateThrottled()
         }
@@ -291,6 +305,7 @@ class AppCoordinator: ObservableObject {
     func toggleMoveMode() {
         isMoving.toggle()
         if isMoving {
+            multiScreen?.setIgnoresMouseEvents(false)
             eventMonitor.startDragTracking(
                 onDown: { [weak self] clickPoint in
                     guard let self else { return }
@@ -310,7 +325,7 @@ class AppCoordinator: ObservableObject {
                         localCat.setAbsPosition(absPoint)
                         if wsClient.isConnected, localCat.syncPosition {
                             let net = localCat.networkPosition
-                            wsClient.sendState(x: net.x, y: net.y, isActive: localCat.isActive)
+                            wsClient.sendState(x: net.x, y: net.y, isActive: localCat.isActive, combo: localCat.comboCount, sleeping: localCat.isSleeping)
                         }
                     }
                 },
@@ -324,6 +339,7 @@ class AppCoordinator: ObservableObject {
                 }
             )
         } else {
+            multiScreen?.setIgnoresMouseEvents(true)
             eventMonitor.stopDragTracking()
             localCat.savePosition()
             draggingPeerIndex = nil
@@ -425,13 +441,15 @@ class AppCoordinator: ObservableObject {
             roomState.upsertPeer(userId: userId, name: name, x: 0.85, y: 0.85, isActive: false, theme: catTheme)
         case .userLeft(let userId):
             roomState.removePeer(userId: userId)
-        case .stateUpdate(let userId, let x, let y, let isActive):
+        case .stateUpdate(let userId, let x, let y, let isActive, let combo, let sleeping):
             if localCat.syncPosition {
                 roomState.updatePeerState(userId: userId, x: x, y: y, isActive: isActive)
             } else {
                 // 위치 동기화 OFF: 위치 무시, active 상태만 반영
                 roomState.updatePeerActive(userId: userId, isActive: isActive)
             }
+            roomState.updatePeerCombo(userId: userId, combo: combo)
+            roomState.updatePeerSleeping(userId: userId, isSleeping: sleeping)
         case .renamed(let userId, let name):
             roomState.updatePeerName(userId: userId, name: name)
         case .themeChanged(let userId, let theme):
@@ -450,6 +468,33 @@ class AppCoordinator: ObservableObject {
         }
     }
 
+    // MARK: - Sleep detection
+
+    private func startSleepTimer() {
+        sleepTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let elapsed = Date().timeIntervalSince(lastActivityDate)
+            if elapsed >= Self.sleepTimeout, !localCat.isSleeping {
+                localCat.isSleeping = true
+                sendSleepState()
+            }
+        }
+    }
+
+    private func recordActivity() {
+        lastActivityDate = Date()
+        if localCat.isSleeping {
+            localCat.isSleeping = false
+            sendSleepState()
+        }
+    }
+
+    private func sendSleepState() {
+        guard wsClient.isConnected, localCat.syncPosition else { return }
+        let net = localCat.networkPosition
+        wsClient.sendState(x: net.x, y: net.y, isActive: localCat.isActive, combo: localCat.comboCount, sleeping: localCat.isSleeping)
+    }
+
     private func sendStateThrottled() {
         stateThrottleTimer?.invalidate()
         stateThrottleTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { [weak self] _ in
@@ -457,7 +502,16 @@ class AppCoordinator: ObservableObject {
             localCat.saveKeystrokeCount()
             guard wsClient.isConnected, localCat.syncPosition else { return }
             let net = localCat.networkPosition
-            wsClient.sendState(x: net.x, y: net.y, isActive: localCat.isActive)
+            wsClient.sendState(x: net.x, y: net.y, isActive: localCat.isActive, combo: localCat.comboCount, sleeping: localCat.isSleeping)
+        }
+    }
+
+    func setPowerMode(_ on: Bool) {
+        localCat.powerMode = on
+        UserDefaults.standard.set(on, forKey: "powerMode")
+        if !on {
+            localCat.comboCount = 0
+            localCat.particles.removeAll()
         }
     }
 }
@@ -490,6 +544,7 @@ struct CatchCatchApp: App {
                 onThemeChanged: coordinator.changeTheme,
                 onShowNameChanged: coordinator.setShowName,
                 onSyncPositionChanged: coordinator.setSyncPosition,
+                onPowerModeChanged: coordinator.setPowerMode,
                 isMoving: coordinator.isMoving
             )
         }

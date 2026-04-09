@@ -43,6 +43,104 @@ private struct Triangle: Shape {
     }
 }
 
+// MARK: - Power mode particles
+
+struct ParticleView: View {
+    let particles: [CatParticle]
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let now = timeline.date
+            Canvas { context, size in
+                let centerX = size.width / 2
+                let bottomY = size.height * 0.75  // 고양이 하단 근처에서 시작
+                for p in particles {
+                    let age = now.timeIntervalSince(p.created)
+                    let life: Double = 0.8
+                    guard age < life else { continue }
+                    let progress = age / life
+                    let x = centerX + p.startX + p.dx * progress
+                    let y = bottomY + p.dy * progress
+                    let opacity = 1.0 - progress * progress  // 부드러운 페이드
+                    let radius = 3.5 * (1.0 - progress * 0.4)
+
+                    // 글로우
+                    context.opacity = opacity * 0.35
+                    let glowR = radius * 2.5
+                    context.fill(
+                        Path(ellipseIn: CGRect(x: x - glowR, y: y - glowR, width: glowR * 2, height: glowR * 2)),
+                        with: .color(p.color.swiftUIColor)
+                    )
+
+                    // 코어
+                    context.opacity = opacity
+                    context.fill(
+                        Path(ellipseIn: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)),
+                        with: .color(p.color.swiftUIColor)
+                    )
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+struct ComboLabel: View {
+    let count: Int
+    let color: CatParticleColor
+
+    var body: some View {
+        if count >= 2 {
+            Text("x\(count)")
+                .font(.system(size: comboFontSize, weight: .heavy, design: .rounded))
+                .foregroundColor(color.swiftUIColor)
+                .shadow(color: color.swiftUIColor.opacity(0.6), radius: 4)
+                .transition(.scale.combined(with: .opacity))
+                .animation(.spring(response: 0.2, dampingFraction: 0.6), value: count)
+        }
+    }
+
+    private var comboFontSize: CGFloat {
+        switch count {
+        case 0..<30: return 14
+        case 30..<60: return 16
+        case 60..<100: return 18
+        case 100..<150: return 20
+        default: return 24
+        }
+    }
+}
+
+extension CatParticleColor {
+    var swiftUIColor: Color {
+        switch self {
+        case .cyan: return Color(red: 0.3, green: 0.9, blue: 1.0)
+        case .blue: return Color(red: 0.4, green: 0.6, blue: 1.0)
+        case .green: return Color(red: 0.3, green: 1.0, blue: 0.5)
+        case .yellow: return Color(red: 1.0, green: 0.95, blue: 0.3)
+        case .orange: return Color(red: 1.0, green: 0.6, blue: 0.2)
+        case .red: return Color(red: 1.0, green: 0.2, blue: 0.2)
+        case .pink: return Color(red: 1.0, green: 0.3, blue: 0.7)
+        case .white: return .white
+        }
+    }
+}
+
+struct SleepIndicator: View {
+    @State private var opacity: Double = 0.4
+
+    var body: some View {
+        Text("\u{1F4A4}")
+            .font(.system(size: 18))
+            .opacity(opacity)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                    opacity = 1.0
+                }
+            }
+    }
+}
+
 struct CatWidget: View {
     let isActive: Bool
     let name: String
@@ -51,12 +149,23 @@ struct CatWidget: View {
     let messages: [BubbleMessage]
     var isChatOpen: Bool = false
     var showName: Bool = true
+    var isSleeping: Bool = false
+    var comboCount: Int = 0
+    var comboColor: CatParticleColor = .white
+    var particles: [CatParticle] = []
 
     var body: some View {
         Image(isActive ? theme.activeImage : theme.idleImage)
             .resizable()
             .interpolation(.none)
             .frame(width: 80, height: 80)
+            // 수면 표시: 고양이 머리 위 왼쪽
+            .overlay(alignment: .topLeading) {
+                if isSleeping {
+                    SleepIndicator()
+                        .offset(x: -16, y: -24)
+                }
+            }
             // 말풍선: 고양이 위로 쌓임
             .overlay(alignment: .top) {
                 VStack(spacing: 4) {
@@ -67,6 +176,15 @@ struct CatWidget: View {
                 .fixedSize()
                 .alignmentGuide(.top) { d in d[.bottom] + 6 }
                 .animation(.easeOut(duration: 0.18), value: messages)
+            }
+            // 파워모드: 파티클 + 콤보
+            .overlay {
+                ParticleView(particles: particles)
+                    .frame(width: 160, height: 160)
+            }
+            .overlay(alignment: .topTrailing) {
+                ComboLabel(count: comboCount, color: comboColor)
+                    .offset(x: 10, y: -10)
             }
             // 이름: 고양이 바로 밑 (채팅 인풋 열리면 더 밑으로)
             .overlay(alignment: .bottom) {
@@ -115,7 +233,11 @@ struct CatOverlayView: View {
                 theme: roomState.selectedTheme,
                 messages: localCat.bubbleMessages,
                 isChatOpen: localCat.isChatOpen,
-                showName: localCat.showName
+                showName: localCat.showName,
+                isSleeping: localCat.isSleeping,
+                comboCount: localCat.comboCount,
+                comboColor: localCat.comboColor,
+                particles: localCat.particles
             )
             widget.position(x: localX, y: localY)
         }
@@ -123,12 +245,25 @@ struct CatOverlayView: View {
 
     private var peerCatsView: some View {
         ForEach(roomState.peers) { peer in
+            let peerComboColor: CatParticleColor = {
+                switch peer.comboCount {
+                case 0..<30: return .cyan
+                case 30..<60: return .green
+                case 60..<100: return .orange
+                case 100..<150: return .red
+                default: return .pink
+                }
+            }()
             CatWidget(
                 isActive: peer.isActive,
                 name: peer.name,
                 isLocal: false,
                 theme: peer.theme,
-                messages: peer.bubbleMessages
+                messages: peer.bubbleMessages,
+                isSleeping: peer.isSleeping,
+                comboCount: peer.comboCount,
+                comboColor: peerComboColor,
+                particles: peer.particles
             )
             .position(
                 x: peer.x * Double(screen.frame.width),
