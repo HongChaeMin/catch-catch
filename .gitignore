@@ -3,3 +3,4 @@ server/node_modules/
 xcuserdata/
 DerivedData/
 .DS_Store
+.claude/tmp/
