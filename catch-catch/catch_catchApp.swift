@@ -477,27 +477,30 @@ class AppCoordinator: ObservableObject {
     private func handleServerMessage(_ message: ServerMessage) {
         switch message {
         case .joined(let users):
-            for u in users {
+            for u in users where u.userId != localCat.userId {
                 let theme = CatTheme(rawValue: u.theme) ?? .gray
                 roomState.upsertPeer(userId: u.userId, name: u.name, x: u.x, y: u.y, isActive: u.isActive, theme: theme)
             }
         case .userJoined(let userId, let name, let theme):
+            guard userId != localCat.userId else { return }
             let catTheme = CatTheme(rawValue: theme) ?? .gray
             roomState.upsertPeer(userId: userId, name: name, x: 0.85, y: 0.85, isActive: false, theme: catTheme)
         case .userLeft(let userId):
             roomState.removePeer(userId: userId)
         case .stateUpdate(let userId, let x, let y, let isActive, let combo, let sleeping):
+            guard userId != localCat.userId else { return }
             if localCat.syncPosition {
                 roomState.updatePeerState(userId: userId, x: x, y: y, isActive: isActive)
             } else {
-                // 위치 동기화 OFF: 위치 무시, active 상태만 반영
                 roomState.updatePeerActive(userId: userId, isActive: isActive)
             }
             roomState.updatePeerCombo(userId: userId, combo: combo)
             roomState.updatePeerSleeping(userId: userId, isSleeping: sleeping)
         case .renamed(let userId, let name):
+            guard userId != localCat.userId else { return }
             roomState.updatePeerName(userId: userId, name: name)
         case .themeChanged(let userId, let theme):
+            guard userId != localCat.userId else { return }
             let catTheme = CatTheme(rawValue: theme) ?? .gray
             roomState.updatePeerTheme(userId: userId, theme: catTheme)
         case .chat(let userId, let name, let text):
