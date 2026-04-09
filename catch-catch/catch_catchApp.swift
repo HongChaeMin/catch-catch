@@ -272,6 +272,7 @@ class AppCoordinator: ObservableObject {
     private func setupEventMonitor() {
         eventMonitor.onKeyboardActiveChanged = { [weak self] isActive in
             guard let self, isActive else { return }  // keyDown만 반응, keyUp 무시
+            localCat.incrementKeystroke()
             localCat.isActive ? localCat.deactivate() : localCat.activate()
             sendStateThrottled()
         }
@@ -285,23 +286,71 @@ class AppCoordinator: ObservableObject {
 
     // MARK: - Move mode
 
+    private var draggingPeerIndex: Int? = nil
+
     func toggleMoveMode() {
         isMoving.toggle()
         if isMoving {
-            eventMonitor.startDragTracking { [weak self] absPoint in
-                guard let self else { return }
-                localCat.setAbsPosition(absPoint)
-                if wsClient.isConnected {
-                    let net = localCat.networkPosition
-                    wsClient.sendState(x: net.x, y: net.y, isActive: localCat.isActive)
+            eventMonitor.startDragTracking(
+                onDown: { [weak self] clickPoint in
+                    guard let self else { return }
+                    draggingPeerIndex = findClosestPeer(to: clickPoint)
+                },
+                onDrag: { [weak self] absPoint in
+                    guard let self else { return }
+                    if let idx = draggingPeerIndex {
+                        // peer 드래그 (로컬만)
+                        let screen = NSScreen.main ?? NSScreen.screens[0]
+                        let normX = (Double(absPoint.x) - Double(screen.frame.minX)) / Double(screen.frame.width)
+                        let normY = (Double(absPoint.y) - Double(screen.frame.minY)) / Double(screen.frame.height)
+                        roomState.peers[idx].x = max(0, min(1, normX))
+                        roomState.peers[idx].y = max(0, min(1, 1.0 - normY))
+                    } else {
+                        // local cat 드래그
+                        localCat.setAbsPosition(absPoint)
+                        if wsClient.isConnected, localCat.syncPosition {
+                            let net = localCat.networkPosition
+                            wsClient.sendState(x: net.x, y: net.y, isActive: localCat.isActive)
+                        }
+                    }
+                },
+                onEnd: { [weak self] in
+                    guard let self else { return }
+                    if draggingPeerIndex != nil {
+                        draggingPeerIndex = nil
+                    } else {
+                        localCat.savePosition()
+                    }
                 }
-            } onEnd: { [weak self] in
-                self?.localCat.savePosition()
-            }
+            )
         } else {
             eventMonitor.stopDragTracking()
             localCat.savePosition()
+            draggingPeerIndex = nil
         }
+    }
+
+    private func findClosestPeer(to point: CGPoint) -> Int? {
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        // 로컬 고양이 중심
+        let localCenter = CGPoint(x: localCat.absX, y: localCat.absY + 40)
+        let localDist = hypot(point.x - localCenter.x, point.y - localCenter.y)
+
+        var closestIdx: Int? = nil
+        var closestDist = localDist // 로컬이 더 가까우면 nil 리턴 (로컬 드래그)
+
+        for (i, peer) in roomState.peers.enumerated() {
+            let px = Double(screen.frame.minX) + peer.x * Double(screen.frame.width)
+            let py = Double(screen.frame.minY) + (1.0 - peer.y) * Double(screen.frame.height)
+            let peerCenter = CGPoint(x: px, y: py + 40)
+            let dist = hypot(point.x - peerCenter.x, point.y - peerCenter.y)
+            if dist < closestDist && dist < 60 {
+                closestDist = dist
+                closestIdx = i
+            }
+        }
+
+        return closestIdx
     }
 
     // MARK: - Room management
@@ -339,6 +388,16 @@ class AppCoordinator: ObservableObject {
         }
     }
 
+    func setShowName(_ show: Bool) {
+        localCat.showName = show
+        UserDefaults.standard.set(show, forKey: "showName")
+    }
+
+    func setSyncPosition(_ sync: Bool) {
+        localCat.syncPosition = sync
+        UserDefaults.standard.set(sync, forKey: "syncPosition")
+    }
+
     // MARK: - WebSocket
 
     private func setupWebSocketHandlers() {
@@ -367,7 +426,12 @@ class AppCoordinator: ObservableObject {
         case .userLeft(let userId):
             roomState.removePeer(userId: userId)
         case .stateUpdate(let userId, let x, let y, let isActive):
-            roomState.updatePeerState(userId: userId, x: x, y: y, isActive: isActive)
+            if localCat.syncPosition {
+                roomState.updatePeerState(userId: userId, x: x, y: y, isActive: isActive)
+            } else {
+                // 위치 동기화 OFF: 위치 무시, active 상태만 반영
+                roomState.updatePeerActive(userId: userId, isActive: isActive)
+            }
         case .renamed(let userId, let name):
             roomState.updatePeerName(userId: userId, name: name)
         case .themeChanged(let userId, let theme):
@@ -389,7 +453,9 @@ class AppCoordinator: ObservableObject {
     private func sendStateThrottled() {
         stateThrottleTimer?.invalidate()
         stateThrottleTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { [weak self] _ in
-            guard let self, wsClient.isConnected else { return }
+            guard let self else { return }
+            localCat.saveKeystrokeCount()
+            guard wsClient.isConnected, localCat.syncPosition else { return }
             let net = localCat.networkPosition
             wsClient.sendState(x: net.x, y: net.y, isActive: localCat.isActive)
         }
@@ -422,6 +488,8 @@ struct CatchCatchApp: App {
                 onLeaveRoom: coordinator.leaveRoom,
                 onNameChanged: coordinator.renameInRoom,
                 onThemeChanged: coordinator.changeTheme,
+                onShowNameChanged: coordinator.setShowName,
+                onSyncPositionChanged: coordinator.setSyncPosition,
                 isMoving: coordinator.isMoving
             )
         }

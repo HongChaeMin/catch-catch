@@ -93,6 +93,12 @@ class RoomState: ObservableObject {
         }
     }
 
+    func updatePeerActive(userId: String, isActive: Bool) {
+        if let idx = peers.firstIndex(where: { $0.id == userId }) {
+            peers[idx].isActive = isActive
+        }
+    }
+
     func updatePeerName(userId: String, name: String) {
         if let idx = peers.firstIndex(where: { $0.id == userId }) {
             peers[idx].name = name

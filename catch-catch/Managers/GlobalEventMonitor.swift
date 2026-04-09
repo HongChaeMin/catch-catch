@@ -194,11 +194,13 @@ final class GlobalEventMonitor: ObservableObject {
         }
     }
 
-    func startDragTracking(onDrag: @escaping (CGPoint) -> Void, onEnd: @escaping () -> Void) {
+    func startDragTracking(onDown: @escaping (CGPoint) -> Void, onDrag: @escaping (CGPoint) -> Void, onEnd: @escaping () -> Void) {
         stopDragTracking()
 
         dragMouseDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
             self?.isDragging = true
+            let loc = NSEvent.mouseLocation
+            DispatchQueue.main.async { onDown(loc) }
         }
         dragMoveMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged) { [weak self] _ in
             guard self?.isDragging == true else { return }

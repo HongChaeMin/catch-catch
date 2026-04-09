@@ -10,6 +10,8 @@ struct MenuBarContentView: View {
     let onLeaveRoom: () -> Void
     let onNameChanged: (String) -> Void
     let onThemeChanged: (CatTheme) -> Void
+    let onShowNameChanged: (Bool) -> Void
+    let onSyncPositionChanged: (Bool) -> Void
     var isMoving: Bool
 
     @State private var roomCodeInput: String = ""
@@ -17,6 +19,8 @@ struct MenuBarContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             catHeader
+            Divider()
+            optionsSection
             Divider()
             themeSection
             Divider()
@@ -63,6 +67,28 @@ struct MenuBarContentView: View {
             .help(isMoving ? "위치 고정" : "고양이 이동")
         }
         .padding(14)
+    }
+
+    // MARK: - Options section
+
+    private var optionsSection: some View {
+        VStack(spacing: 6) {
+            Toggle("이름 표시", isOn: Binding(
+                get: { localCat.showName },
+                set: { onShowNameChanged($0) }
+            ))
+            .font(.system(size: 12))
+            .toggleStyle(.checkbox)
+
+            Toggle("위치 동기화", isOn: Binding(
+                get: { localCat.syncPosition },
+                set: { onSyncPositionChanged($0) }
+            ))
+            .font(.system(size: 12))
+            .toggleStyle(.checkbox)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Theme section
@@ -264,6 +290,16 @@ struct MenuBarContentView: View {
                 }
                 .buttonStyle(.plain)
             }
+            HStack(spacing: 6) {
+                Image(systemName: "keyboard")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                Text("오늘 \(localCat.keystrokeCount.formatted())타")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+
             HStack {
                 Text("catch-catch v\(updateChecker.currentVersion)")
                     .font(.system(size: 10))

@@ -8,6 +8,30 @@ class CatState: ObservableObject {
     @Published var isActive: Bool = false
     @Published var bubbleMessages: [BubbleMessage] = []
     @Published var isChatOpen: Bool = false
+    @Published var showName: Bool = UserDefaults.standard.object(forKey: "showName") as? Bool ?? true
+    @Published var syncPosition: Bool = UserDefaults.standard.object(forKey: "syncPosition") as? Bool ?? true
+    @Published var keystrokeCount: Int = UserDefaults.standard.integer(forKey: "keystrokeCount")
+    @Published var keystrokeDate: String = UserDefaults.standard.string(forKey: "keystrokeDate") ?? ""
+
+    func incrementKeystroke() {
+        let today = Self.todayString()
+        if keystrokeDate != today {
+            keystrokeCount = 0
+            keystrokeDate = today
+        }
+        keystrokeCount += 1
+    }
+
+    func saveKeystrokeCount() {
+        UserDefaults.standard.set(keystrokeCount, forKey: "keystrokeCount")
+        UserDefaults.standard.set(keystrokeDate, forKey: "keystrokeDate")
+    }
+
+    private static func todayString() -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: Date())
+    }
 
     let userId: String
     var name: String
