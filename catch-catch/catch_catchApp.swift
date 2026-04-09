@@ -293,7 +293,14 @@ class AppCoordinator: ObservableObject {
         }
 
         alwaysDragMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
-            guard let self, !isMoving else { return }
+            guard let self else { return }
+            // 이전 드래그가 남아있으면 강제 정리
+            if isMoving {
+                eventMonitor.stopDragTracking()
+                isMoving = false
+                draggingPeerIndex = nil
+                dragStartPoint = nil
+            }
             let clickPoint = NSEvent.mouseLocation
             guard isClickNearAnyCat(clickPoint) else {
                 if chatPanel.isVisible { chatPanel.hide() }
@@ -304,8 +311,10 @@ class AppCoordinator: ObservableObject {
     }
 
     private func isClickNearAnyCat(_ point: CGPoint) -> Bool {
+        let half = 40.0
         let margin = 10.0
-        let localRect = CGRect(x: localCat.absX - margin, y: localCat.absY - margin,
+        // absX/absY = 고양이 중심 (position으로 배치), 이미지 80x80
+        let localRect = CGRect(x: localCat.absX - half - margin, y: localCat.absY - half - margin,
                                width: 80 + margin * 2, height: 80 + margin * 2)
         if localRect.contains(point) { return true }
 
@@ -313,7 +322,7 @@ class AppCoordinator: ObservableObject {
         for peer in roomState.peers {
             let px = Double(screen.frame.minX) + peer.x * Double(screen.frame.width)
             let py = Double(screen.frame.minY) + (1.0 - peer.y) * Double(screen.frame.height)
-            let peerRect = CGRect(x: px - margin, y: py - margin,
+            let peerRect = CGRect(x: px - half - margin, y: py - half - margin,
                                   width: 80 + margin * 2, height: 80 + margin * 2)
             if peerRect.contains(point) { return true }
         }
@@ -384,17 +393,17 @@ class AppCoordinator: ObservableObject {
 
     private func findClosestPeer(to point: CGPoint) -> Int? {
         let screen = NSScreen.screens[0]
-        // 로컬 고양이 중심
-        let localCenter = CGPoint(x: localCat.absX, y: localCat.absY + 40)
+        // absX/absY = 고양이 중심 (.position으로 배치)
+        let localCenter = CGPoint(x: localCat.absX, y: localCat.absY)
         let localDist = hypot(point.x - localCenter.x, point.y - localCenter.y)
 
         var closestIdx: Int? = nil
-        var closestDist = localDist // 로컬이 더 가까우면 nil 리턴 (로컬 드래그)
+        var closestDist = localDist
 
         for (i, peer) in roomState.peers.enumerated() {
             let px = Double(screen.frame.minX) + peer.x * Double(screen.frame.width)
             let py = Double(screen.frame.minY) + (1.0 - peer.y) * Double(screen.frame.height)
-            let peerCenter = CGPoint(x: px, y: py + 40)
+            let peerCenter = CGPoint(x: px, y: py)
             let dist = hypot(point.x - peerCenter.x, point.y - peerCenter.y)
             if dist < closestDist && dist < 80 {
                 closestDist = dist
