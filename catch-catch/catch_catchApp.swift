@@ -12,8 +12,14 @@ enum PermissionAlert {
 
 // MARK: - Overlay Window (one per screen)
 
+/// 클릭해도 앱을 활성화하지 않는 오버레이 패널
+final class OverlayPanel: NSPanel {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+}
+
 class CatWindowController: NSObject, NSWindowDelegate {
-    private var window: NSWindow?
+    private var window: NSPanel?
     let screen: NSScreen
     let localCat: CatState
     let roomState: RoomState
@@ -27,9 +33,9 @@ class CatWindowController: NSObject, NSWindowDelegate {
     func show() {
         guard window == nil else { return }
 
-        let win = NSWindow(
+        let win = OverlayPanel(
             contentRect: screen.frame,
-            styleMask: [.borderless],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false,
             screen: screen
@@ -37,11 +43,13 @@ class CatWindowController: NSObject, NSWindowDelegate {
         win.level = .statusBar
         win.isOpaque = false
         win.backgroundColor = .clear
+        win.hasShadow = false
         win.ignoresMouseEvents = true
         win.hidesOnDeactivate = false
+        win.isFloatingPanel = true
         win.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
 
-        let isPrimary = screen == NSScreen.main
+        let isPrimary = screen == NSScreen.screens[0]
         let view = CatOverlayView(
             localCat: localCat,
             roomState: roomState,
@@ -63,9 +71,6 @@ class CatWindowController: NSObject, NSWindowDelegate {
         window = nil
     }
 
-    func setIgnoresMouseEvents(_ ignores: Bool) {
-        window?.ignoresMouseEvents = ignores
-    }
 }
 
 // MARK: - Floating chat panel
@@ -84,6 +89,12 @@ class ChatPanel {
 
     var isVisible: Bool { panel != nil }
 
+    func updatePosition(near catAbsPoint: CGPoint) {
+        guard let panel else { return }
+        let origin = Self.computeOrigin(near: catAbsPoint)
+        panel.setFrameOrigin(origin)
+    }
+
     func toggle(near catAbsPoint: CGPoint) {
         if panel != nil {
             hide()
@@ -92,15 +103,11 @@ class ChatPanel {
         }
     }
 
-    func show(near catAbsPoint: CGPoint) {
-        hide()
-
+    private static func computeOrigin(near catAbsPoint: CGPoint) -> NSPoint {
         let width = ChatInputView.width
         let height = ChatInputView.height
         let size = CGSize(width: width, height: height)
 
-        // catAbsPoint는 고양이 중심(absX, absY + 40), 이미지 80×80
-        // 이름 라벨이 고양이 밑에 ~20px, 인풋은 그 밑에 배치
         let catRect = CGRect(
             x: catAbsPoint.x - 40, y: catAbsPoint.y - 40,
             width: 80, height: 80
@@ -110,7 +117,6 @@ class ChatPanel {
         let vf = screen?.visibleFrame ?? .zero
         let gap: CGFloat = 2
 
-        // catRect.minY는 고양이 중심(catAbsPoint이 고양이 상단이므로), 실제 하단은 -40 더
         let catBottomScreen = catRect.minY - 40
         let belowCatY = catBottomScreen - gap - height
         let candidates: [NSPoint] = [
@@ -123,11 +129,19 @@ class ChatPanel {
             return vf.contains(r)
         } ?? candidates[0]
 
-        // 최종 안전망: visibleFrame 내로 클램프
-        let origin = NSPoint(
+        return NSPoint(
             x: min(max(vf.minX + 8, picked.x), vf.maxX - width - 8),
             y: min(max(vf.minY + 8, picked.y), vf.maxY - height - 8)
         )
+    }
+
+    func show(near catAbsPoint: CGPoint) {
+        hide()
+
+        let width = ChatInputView.width
+        let height = ChatInputView.height
+        let size = CGSize(width: width, height: height)
+        let origin = Self.computeOrigin(near: catAbsPoint)
 
         let p = KeyableChatPanel(
             contentRect: NSRect(origin: origin, size: size),
@@ -196,9 +210,6 @@ class MultiScreenCatController {
         controllers.removeAll()
     }
 
-    func setIgnoresMouseEvents(_ ignores: Bool) {
-        controllers.forEach { $0.setIgnoresMouseEvents(ignores) }
-    }
 }
 
 // MARK: - App Coordinator
@@ -264,15 +275,15 @@ class AppCoordinator: ObservableObject {
         eventMonitor.start()
     }
 
-    // MARK: - Always-drag (click near cat to drag, click to chat)
+    // MARK: - Always-drag (global monitor: click = chat, drag = move)
 
     private var alwaysDragMonitor: Any?
     private var draggingPeerIndex: Int? = nil
     private var dragStartPoint: CGPoint? = nil
     private static let dragThreshold: CGFloat = 5
 
-    /// Set up a permanent global mouseDown monitor. When the click lands near a cat,
-    /// enter drag mode. On mouseUp: if movement < threshold → treat as click (toggle chat).
+    /// 글로벌 mouseDown 모니터로 고양이 근처 클릭 감지 → 드래그/클릭 처리.
+    /// 오버레이는 항상 click-through (배경 앱에 이벤트도 전달됨).
     private func setupAlwaysDrag() {
         chatPanel.onSendChat = { [weak self] text in
             self?.sendChat(text)
@@ -282,57 +293,65 @@ class AppCoordinator: ObservableObject {
         }
 
         alwaysDragMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
-            guard let self else { return }
+            guard let self, !isMoving else { return }
             let clickPoint = NSEvent.mouseLocation
-
-            // Check if click is near any cat (local or peer)
-            let isNearCat = isClickNearAnyCat(clickPoint)
-            guard isNearCat else {
-                // Click not near any cat — dismiss chat if open
-                DispatchQueue.main.async { [weak self] in
-                    guard let self, chatPanel.isVisible else { return }
-                    chatPanel.hide()
-                }
+            guard isClickNearAnyCat(clickPoint) else {
+                if chatPanel.isVisible { chatPanel.hide() }
                 return
             }
-
-            // Click is near a cat — start drag tracking
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.beginCatDrag(from: clickPoint)
-            }
+            beginCatDrag(from: clickPoint)
         }
     }
 
-    /// Returns true if the click point is within range of any cat (local or peer).
-    /// Reuses findClosestPeer distance logic — local cat is always checked there too.
     private func isClickNearAnyCat(_ point: CGPoint) -> Bool {
-        let localCenter = CGPoint(x: localCat.absX, y: localCat.absY + 40)
-        if hypot(point.x - localCenter.x, point.y - localCenter.y) < 40 { return true }
-        // findClosestPeer returns non-nil only if a peer is within 60px AND closer than local
-        // So also check peers directly with the same 40px threshold
-        return findClosestPeer(to: point) != nil
+        let margin = 10.0
+        let localRect = CGRect(x: localCat.absX - margin, y: localCat.absY - margin,
+                               width: 80 + margin * 2, height: 80 + margin * 2)
+        if localRect.contains(point) { return true }
+
+        let screen = NSScreen.screens[0]
+        for peer in roomState.peers {
+            let px = Double(screen.frame.minX) + peer.x * Double(screen.frame.width)
+            let py = Double(screen.frame.minY) + (1.0 - peer.y) * Double(screen.frame.height)
+            let peerRect = CGRect(x: px - margin, y: py - margin,
+                                  width: 80 + margin * 2, height: 80 + margin * 2)
+            if peerRect.contains(point) { return true }
+        }
+        return false
     }
 
-    /// Enter drag mode: enable overlay mouse events, record start point, install drag monitors.
     private func beginCatDrag(from clickPoint: CGPoint) {
         isMoving = true
         dragStartPoint = clickPoint
         draggingPeerIndex = findClosestPeer(to: clickPoint)
-        multiScreen?.setIgnoresMouseEvents(false)
+        recordActivity()
+
+        let offsetX = clickPoint.x - localCat.absX
+        let offsetY = clickPoint.y - localCat.absY
+        var thresholdExceeded = false
 
         eventMonitor.startDragTracking(
-            onDown: { _ in },  // already handled above
             onDrag: { [weak self] absPoint in
                 guard let self else { return }
+                if !thresholdExceeded {
+                    let startPoint = dragStartPoint ?? clickPoint
+                    let distance = hypot(absPoint.x - startPoint.x, absPoint.y - startPoint.y)
+                    guard distance >= Self.dragThreshold else { return }
+                    thresholdExceeded = true
+                }
+
                 if let idx = draggingPeerIndex {
-                    let screen = NSScreen.main ?? NSScreen.screens[0]
+                    let screen = NSScreen.screens[0]
                     let normX = (Double(absPoint.x) - Double(screen.frame.minX)) / Double(screen.frame.width)
                     let normY = (Double(absPoint.y) - Double(screen.frame.minY)) / Double(screen.frame.height)
-                    roomState.peers[idx].x = max(0, min(1, normX))
-                    roomState.peers[idx].y = max(0, min(1, 1.0 - normY))
+                    roomState.peers[idx].x = normX
+                    roomState.peers[idx].y = 1.0 - normY
                 } else {
-                    localCat.setAbsPosition(absPoint)
+                    let newPos = CGPoint(x: absPoint.x - offsetX, y: absPoint.y - offsetY)
+                    localCat.setAbsPosition(newPos)
+                    if chatPanel.isVisible {
+                        chatPanel.updatePosition(near: CGPoint(x: localCat.absX, y: localCat.absY + 40))
+                    }
                     if wsClient.isConnected, localCat.syncPosition {
                         let net = localCat.networkPosition
                         wsClient.sendState(x: net.x, y: net.y, isActive: localCat.isActive, combo: localCat.comboCount, sleeping: localCat.isSleeping)
@@ -346,19 +365,15 @@ class AppCoordinator: ObservableObject {
                 let distance = hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y)
 
                 if distance < Self.dragThreshold {
-                    // Click (not drag) → toggle chat if connected
                     if roomState.isConnected {
                         chatPanel.toggle(near: CGPoint(x: localCat.absX, y: localCat.absY + 40))
                     }
                 } else {
-                    // Drag completed → save position
                     if draggingPeerIndex == nil {
                         localCat.savePosition()
                     }
                 }
 
-                // Restore overlay passthrough
-                multiScreen?.setIgnoresMouseEvents(true)
                 eventMonitor.stopDragTracking()
                 isMoving = false
                 draggingPeerIndex = nil
@@ -368,7 +383,7 @@ class AppCoordinator: ObservableObject {
     }
 
     private func findClosestPeer(to point: CGPoint) -> Int? {
-        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let screen = NSScreen.screens[0]
         // 로컬 고양이 중심
         let localCenter = CGPoint(x: localCat.absX, y: localCat.absY + 40)
         let localDist = hypot(point.x - localCenter.x, point.y - localCenter.y)
@@ -381,7 +396,7 @@ class AppCoordinator: ObservableObject {
             let py = Double(screen.frame.minY) + (1.0 - peer.y) * Double(screen.frame.height)
             let peerCenter = CGPoint(x: px, y: py + 40)
             let dist = hypot(point.x - peerCenter.x, point.y - peerCenter.y)
-            if dist < closestDist && dist < 60 {
+            if dist < closestDist && dist < 80 {
                 closestDist = dist
                 closestIdx = i
             }

@@ -94,7 +94,7 @@ class CatState: ObservableObject {
     init(userId: String = UUID().uuidString, name: String = "me") {
         self.userId = userId
         self.name = name
-        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let screen = NSScreen.screens[0]
         absX = Double(screen.frame.maxX) - 80
         absY = Double(screen.frame.minY) + 80
     }
@@ -109,7 +109,7 @@ class CatState: ObservableObject {
     }
 
     var networkPosition: (x: Double, y: Double) {
-        let screen = containingScreen ?? NSScreen.main ?? NSScreen.screens[0]
+        let screen = containingScreen ?? NSScreen.screens[0]
         let normX = (absX - Double(screen.frame.minX)) / Double(screen.frame.width)
         let normY = 1.0 - (absY - Double(screen.frame.minY)) / Double(screen.frame.height)
         return (x: max(0, min(1, normX)), y: max(0, min(1, normY)))

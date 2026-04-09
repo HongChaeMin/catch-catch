@@ -214,7 +214,7 @@ struct CatOverlayView: View {
     var body: some View {
         ZStack {
             localCatView
-            if isPrimary { peerCatsView }
+            peerCatsView
         }
         .frame(width: screen.frame.width, height: screen.frame.height)
         .ignoresSafeArea()
@@ -243,32 +243,40 @@ struct CatOverlayView: View {
         }
     }
 
+    @ViewBuilder
     private var peerCatsView: some View {
+        let primary = NSScreen.screens[0]
         ForEach(roomState.peers) { peer in
-            let peerComboColor: CatParticleColor = {
-                switch peer.comboCount {
-                case 0..<30: return .cyan
-                case 30..<60: return .green
-                case 60..<100: return .orange
-                case 100..<150: return .red
-                default: return .pink
-                }
-            }()
-            CatWidget(
-                isActive: peer.isActive,
-                name: peer.name,
-                isLocal: false,
-                theme: peer.theme,
-                messages: peer.bubbleMessages,
-                isSleeping: peer.isSleeping,
-                comboCount: peer.comboCount,
-                comboColor: peerComboColor,
-                particles: peer.particles
-            )
-            .position(
-                x: peer.x * Double(screen.frame.width),
-                y: peer.y * Double(screen.frame.height)
-            )
+            // 정규화 좌표 → 절대좌표 (주 모니터 기준)
+            let absX = primary.frame.minX + peer.x * primary.frame.width
+            let absY = primary.frame.minY + (1.0 - peer.y) * primary.frame.height
+            let absPoint = CGPoint(x: absX, y: absY)
+
+            if screen.frame.contains(absPoint) {
+                let localX = absX - screen.frame.minX
+                let localY = screen.frame.height - (absY - screen.frame.minY)
+                let peerComboColor: CatParticleColor = {
+                    switch peer.comboCount {
+                    case 0..<30: return .cyan
+                    case 30..<60: return .green
+                    case 60..<100: return .orange
+                    case 100..<150: return .red
+                    default: return .pink
+                    }
+                }()
+                CatWidget(
+                    isActive: peer.isActive,
+                    name: peer.name,
+                    isLocal: false,
+                    theme: peer.theme,
+                    messages: peer.bubbleMessages,
+                    isSleeping: peer.isSleeping,
+                    comboCount: peer.comboCount,
+                    comboColor: peerComboColor,
+                    particles: peer.particles
+                )
+                .position(x: localX, y: localY)
+            }
         }
     }
 }
