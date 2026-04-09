@@ -159,11 +159,11 @@ struct CatWidget: View {
             .resizable()
             .interpolation(.none)
             .frame(width: 80, height: 80)
-            // 수면 표시: 고양이 머리 위 왼쪽
-            .overlay(alignment: .topLeading) {
+            // 수면 표시: 고양이 머리 위 가운데
+            .overlay(alignment: .top) {
                 if isSleeping {
                     SleepIndicator()
-                        .offset(x: -16, y: -24)
+                        .offset(x: 10, y: -22)
                 }
             }
             // 말풍선: 고양이 위로 쌓임
