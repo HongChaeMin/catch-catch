@@ -252,8 +252,33 @@ class AppCoordinator: ObservableObject {
         setupWebSocketHandlers()
         setupAlwaysDrag()
         startSleepTimer()
+        observeScreenChanges()
         PermissionAlert.showIfNeeded()
         updateChecker.check()
+    }
+
+    // MARK: - Screen change detection
+
+    private func observeScreenChanges() {
+        NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
+            .debounce(for: .seconds(0.5), scheduler: RunLoop.main)
+            .sink { [weak self] _ in self?.handleScreenChange() }
+            .store(in: &cancellables)
+    }
+
+    private func handleScreenChange() {
+        // 로컬 고양이가 화면 밖이면 주 모니터 기본 위치로 리셋
+        let catPoint = CGPoint(x: localCat.absX, y: localCat.absY)
+        let onScreen = NSScreen.screens.contains { $0.frame.contains(catPoint) }
+        if !onScreen {
+            let screen = NSScreen.screens[0]
+            localCat.absX = Double(screen.frame.maxX) - 80
+            localCat.absY = Double(screen.frame.minY) + 80
+            localCat.savePosition()
+        }
+        // 오버레이 윈도우 재생성 (모니터 구성 변경 반영)
+        multiScreen?.hide()
+        multiScreen?.show()
     }
 
     // MARK: - Event monitor
@@ -269,10 +294,15 @@ class AppCoordinator: ObservableObject {
         eventMonitor.onMouseActiveChanged = { [weak self] isActive in
             guard let self, isActive else { return }  // mouseDown만 반응, mouseUp 무시
             recordActivity()
+            localCat.incrementKeystroke()
             localCat.isActive ? localCat.deactivate() : localCat.activate()
             sendStateThrottled()
         }
         eventMonitor.start()
+
+        localCat.onComboReset = { [weak self] in
+            self?.sendStateThrottled()
+        }
     }
 
     // MARK: - Always-drag (global monitor: click = chat, drag = move)
@@ -538,19 +568,22 @@ class AppCoordinator: ObservableObject {
     }
 
     private func sendSleepState() {
-        guard wsClient.isConnected, localCat.syncPosition else { return }
+        guard wsClient.isConnected else { return }
         let net = localCat.networkPosition
-        wsClient.sendState(x: net.x, y: net.y, isActive: localCat.isActive, combo: localCat.comboCount, sleeping: localCat.isSleeping)
+        let x = localCat.syncPosition ? net.x : nil
+        let y = localCat.syncPosition ? net.y : nil
+        wsClient.sendState(x: x, y: y, isActive: localCat.isActive, combo: localCat.comboCount, sleeping: localCat.isSleeping)
     }
 
     private func sendStateThrottled() {
         stateThrottleTimer?.invalidate()
         stateThrottleTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { [weak self] _ in
-            guard let self else { return }
+            guard let self, wsClient.isConnected else { return }
             localCat.saveKeystrokeCount()
-            guard wsClient.isConnected, localCat.syncPosition else { return }
             let net = localCat.networkPosition
-            wsClient.sendState(x: net.x, y: net.y, isActive: localCat.isActive, combo: localCat.comboCount, sleeping: localCat.isSleeping)
+            let x = localCat.syncPosition ? net.x : nil
+            let y = localCat.syncPosition ? net.y : nil
+            wsClient.sendState(x: x, y: y, isActive: localCat.isActive, combo: localCat.comboCount, sleeping: localCat.isSleeping)
         }
     }
 

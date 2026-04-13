@@ -19,6 +19,7 @@ class CatState: ObservableObject {
     @Published var comboCount: Int = 0
     @Published var particles: [CatParticle] = []
     private var comboResetTimer: Timer?
+    var onComboReset: (() -> Void)?
 
     func incrementKeystroke() {
         let today = Self.todayString()
@@ -37,6 +38,7 @@ class CatState: ObservableObject {
         comboResetTimer?.invalidate()
         comboResetTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
             self?.comboCount = 0
+            self?.onComboReset?()
         }
     }
 
@@ -109,10 +111,10 @@ class CatState: ObservableObject {
     }
 
     var networkPosition: (x: Double, y: Double) {
-        let screen = containingScreen ?? NSScreen.screens[0]
+        let screen = NSScreen.screens[0]  // 항상 주 모니터 기준 정규화
         let normX = (absX - Double(screen.frame.minX)) / Double(screen.frame.width)
         let normY = 1.0 - (absY - Double(screen.frame.minY)) / Double(screen.frame.height)
-        return (x: max(0, min(1, normX)), y: max(0, min(1, normY)))
+        return (x: normX, y: normY)  // 클램핑 없음 — 멀티모니터 좌표 보존
     }
 
     var containingScreen: NSScreen? {
@@ -127,6 +129,12 @@ class CatState: ObservableObject {
     func loadPosition() {
         let x = UserDefaults.standard.double(forKey: "catAbsX")
         let y = UserDefaults.standard.double(forKey: "catAbsY")
-        if x != 0 || y != 0 { absX = x; absY = y }
+        guard x != 0 || y != 0 else { return }
+        let point = CGPoint(x: x, y: y)
+        let onScreen = NSScreen.screens.contains { $0.frame.contains(point) }
+        if onScreen {
+            absX = x; absY = y
+        }
+        // 화면 밖이면 init 기본 위치 유지
     }
 }

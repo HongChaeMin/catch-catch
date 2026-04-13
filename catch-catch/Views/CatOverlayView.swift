@@ -248,13 +248,14 @@ struct CatOverlayView: View {
         let primary = NSScreen.screens[0]
         ForEach(roomState.peers) { peer in
             // 정규화 좌표 → 절대좌표 (주 모니터 기준)
-            let absX = primary.frame.minX + peer.x * primary.frame.width
-            let absY = primary.frame.minY + (1.0 - peer.y) * primary.frame.height
-            let absPoint = CGPoint(x: absX, y: absY)
+            let rawX = primary.frame.minX + peer.x * primary.frame.width
+            let rawY = primary.frame.minY + (1.0 - peer.y) * primary.frame.height
+            // 화면 밖이면 가장 가까운 화면 가장자리로 클램핑
+            let clamped = Self.clampToNearestScreen(CGPoint(x: rawX, y: rawY))
 
-            if screen.frame.contains(absPoint) {
-                let localX = absX - screen.frame.minX
-                let localY = screen.frame.height - (absY - screen.frame.minY)
+            if screen.frame.contains(clamped) {
+                let localX = clamped.x - screen.frame.minX
+                let localY = screen.frame.height - (clamped.y - screen.frame.minY)
                 let peerComboColor: CatParticleColor = {
                     switch peer.comboCount {
                     case 0..<30: return .cyan
@@ -278,6 +279,25 @@ struct CatOverlayView: View {
                 .position(x: localX, y: localY)
             }
         }
+    }
+
+    /// 좌표가 어떤 화면에든 속하면 그대로 반환, 아니면 가장 가까운 화면 안쪽으로 클램핑
+    private static func clampToNearestScreen(_ point: CGPoint) -> CGPoint {
+        if NSScreen.screens.contains(where: { $0.frame.contains(point) }) { return point }
+        let margin: CGFloat = 40 // 고양이 반 크기
+        var closest = point
+        var minDist = CGFloat.greatestFiniteMagnitude
+        for screen in NSScreen.screens {
+            let r = screen.frame
+            let cx = min(max(point.x, r.minX + margin), r.maxX - margin)
+            let cy = min(max(point.y, r.minY + margin), r.maxY - margin)
+            let dist = hypot(point.x - cx, point.y - cy)
+            if dist < minDist {
+                minDist = dist
+                closest = CGPoint(x: cx, y: cy)
+            }
+        }
+        return closest
     }
 }
 

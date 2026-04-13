@@ -56,8 +56,10 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
         isConnected = false
     }
 
-    func sendState(x: Double, y: Double, isActive: Bool, combo: Int = 0, sleeping: Bool = false) {
-        var msg: [String: Any] = ["type": "state", "x": x, "y": y, "active": isActive]
+    func sendState(x: Double? = nil, y: Double? = nil, isActive: Bool, combo: Int = 0, sleeping: Bool = false) {
+        var msg: [String: Any] = ["type": "state", "active": isActive]
+        if let x { msg["x"] = x }
+        if let y { msg["y"] = y }
         if combo > 0 { msg["combo"] = combo }
         if sleeping { msg["sleeping"] = true }
         send(msg)

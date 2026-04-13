@@ -46,6 +46,7 @@ wss.on('connection', (ws) => {
         }));
 
       safeSend(ws, { type: 'joined', users });
+      console.log(`[join] user=${userId} name=${name} room=${roomCode} roomSize=${room.size}`);
 
       // Notify others
       broadcast(roomCode, userId, { type: 'user_joined', userId, name, theme });
@@ -62,7 +63,7 @@ wss.on('connection', (ws) => {
         peer.active = msg.active ?? peer.active;
       }
 
-      broadcast(roomCode, userId, {
+      const payload = {
         type: 'state',
         userId,
         x: msg.x,
@@ -70,7 +71,9 @@ wss.on('connection', (ws) => {
         active: msg.active,
         combo: msg.combo,
         sleeping: msg.sleeping,
-      });
+      };
+      console.log(`[state] from=${userId} active=${msg.active} combo=${msg.combo} -> ${room.size - 1} peers`);
+      broadcast(roomCode, userId, payload);
 
     } else if (type === 'theme') {
       if (!userId || !roomCode) return;
@@ -115,6 +118,7 @@ wss.on('connection', (ws) => {
 
   function handleLeave() {
     if (!userId || !roomCode) return;
+    console.log(`[leave] user=${userId} room=${roomCode}`);
     const room = rooms.get(roomCode);
     if (room) {
       room.delete(userId);

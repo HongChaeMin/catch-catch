@@ -53,3 +53,55 @@ cd server
 npm install
 node index.js
 ```
+
+## Deploy
+
+### macOS
+
+```bash
+# 1. 빌드
+xcodegen generate
+xcodebuild -scheme catch-catch -destination 'platform=macOS' \
+  -derivedDataPath .claude/tmp/DerivedData -configuration Release build
+
+# 2. 패키징
+rm -rf build/catch-catch.app
+cp -R .claude/tmp/DerivedData/Build/Products/Release/catch-catch.app build/catch-catch.app
+codesign --force --sign - build/catch-catch.app
+
+# 3. DMG (RW 템플릿에서 앱만 교체)
+hdiutil attach build/dmg_rw.dmg -nobrowse
+rm -rf "/Volumes/catch-catch/catch-catch.app"
+cp -R build/catch-catch.app "/Volumes/catch-catch/catch-catch.app"
+hdiutil detach "/Volumes/catch-catch"
+rm -f build/catch-catch.dmg
+hdiutil convert build/dmg_rw.dmg -format UDZO -o build/catch-catch.dmg
+
+# 4. ZIP
+cd build && rm -f catch-catch.zip && zip -r catch-catch.zip catch-catch.app && cd ..
+
+# 5. 릴리스
+unset GITHUB_TOKEN && gh release create vX.Y.Z \
+  build/catch-catch.dmg build/catch-catch.zip \
+  --title "vX.Y.Z" --notes "릴리즈 노트"
+```
+
+### Windows
+
+태그 push만 하면 GitHub Actions가 자동 빌드 + 릴리스:
+
+```bash
+# csproj 버전 업데이트 후 커밋
+git tag vX.Y.Z
+git push origin main --tags
+```
+
+워크플로우(`.github/workflows/release.yml`)가 `v*` 태그에 반응하여 `dotnet publish` → zip → 릴리스 생성.
+
+### Server
+
+```bash
+cd server
+docker buildx build --platform linux/amd64 -t coals0329/catch-catch-server:latest --push .
+# 서버에서 docker pull + 컨테이너 재시작
+```
