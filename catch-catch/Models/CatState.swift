@@ -18,7 +18,7 @@ class CatState: ObservableObject {
     // Power mode
     @Published var comboCount: Int = 0
     @Published var particles: [CatParticle] = []
-    private var comboResetTimer: Timer?
+    private var comboResetWork: DispatchWorkItem?
     var onComboReset: (() -> Void)?
 
     func incrementKeystroke() {
@@ -35,11 +35,13 @@ class CatState: ObservableObject {
         guard powerMode else { return }
         comboCount += 1
         spawnParticles()
-        comboResetTimer?.invalidate()
-        comboResetTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+        comboResetWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
             self?.comboCount = 0
             self?.onComboReset?()
         }
+        comboResetWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: work)
     }
 
     private func spawnParticles() {
