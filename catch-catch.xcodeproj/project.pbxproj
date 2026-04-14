@@ -16,6 +16,7 @@
 		C0A5154BB383266E848D1412 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C2076EE4A4906A65ABFE69EE /* Assets.xcassets */; };
 		C5B6AFF9AEC92B2C633458CA /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CB2539B914DCB05EBE05506 /* UpdateChecker.swift */; };
 		E367859137AEA156C771C919 /* RoomState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28D087B49C775325526AE1C1 /* RoomState.swift */; };
+		EDFE665CFBCAB85942AC5F1B /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 15D8064AA67EB863CB45C07F /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,17 @@
 		E9CCF82C2065AD49F14EBF75 /* catch-catch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "catch-catch.entitlements"; sourceTree = "<group>"; };
 		F46614721C991AF77C59B4F7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		6A94B07B4B51E7110FCB5D81 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EDFE665CFBCAB85942AC5F1B /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		015697D8BD9D57AC937609D7 /* Products */ = {
@@ -101,6 +113,7 @@
 			buildPhases = (
 				45FC2B5F24C9601D3FB353D5 /* Sources */,
 				6A2C69B68030B427051490AD /* Resources */,
+				6A94B07B4B51E7110FCB5D81 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -108,6 +121,7 @@
 			);
 			name = "catch-catch";
 			packageProductDependencies = (
+				15D8064AA67EB863CB45C07F /* Sparkle */,
 			);
 			productName = "catch-catch";
 			productReference = 6847D83403FDEAC843C72E71 /* catch-catch.app */;
@@ -120,7 +134,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2640;
+				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					A6631C8858EC65A8EBD3F3D6 = {
 						ProvisioningStyle = Automatic;
@@ -136,6 +150,9 @@
 			);
 			mainGroup = EDC72C9D2F1443E58AF64FBC;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				E4682E38C5032FF67B0428DD /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 015697D8BD9D57AC937609D7 /* Products */;
 			projectDirPath = "";
@@ -182,7 +199,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "catch-catch/catch-catch.entitlements";
 				COMBINE_HIDPI_IMAGES = YES;
-				DEAD_CODE_STRIPPING = YES;
 				INFOPLIST_FILE = "catch-catch/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -228,12 +244,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -254,7 +268,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
@@ -296,12 +309,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -315,7 +326,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.9;
@@ -328,7 +338,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "catch-catch/catch-catch.entitlements";
 				COMBINE_HIDPI_IMAGES = YES;
-				DEAD_CODE_STRIPPING = YES;
 				INFOPLIST_FILE = "catch-catch/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -349,7 +358,7 @@
 				CA4B2D4C756D29E2E51DC93B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		DFB6391C5D99119E210F948E /* Build configuration list for PBXProject "catch-catch" */ = {
 			isa = XCConfigurationList;
@@ -358,9 +367,28 @@
 				9F794A760C4B140144ABFE38 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E4682E38C5032FF67B0428DD /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		15D8064AA67EB863CB45C07F /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E4682E38C5032FF67B0428DD /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = BE5E745822DFBDCC1B4359FA /* Project object */;
 }

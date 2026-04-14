@@ -263,28 +263,22 @@ struct MenuBarContentView: View {
 
     private var bottomBar: some View {
         VStack(spacing: 6) {
-            if updateChecker.hasUpdate, let version = updateChecker.latestVersion {
-                Button {
-                    if let url = updateChecker.downloadURL {
-                        NSWorkspace.shared.open(url)
-                    } else {
-                        NSWorkspace.shared.open(URL(string: "https://github.com/HongChaeMin/catch-catch/releases/latest")!)
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .font(.system(size: 10))
-                        Text("v\(version) 업데이트 가능")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundColor(.accentColor)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 5)
-                    .background(Color.accentColor.opacity(0.1))
-                    .cornerRadius(6)
+            Button {
+                updateChecker.checkForUpdates()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.down.circle")
+                        .font(.system(size: 10))
+                    Text("업데이트 확인")
+                        .font(.system(size: 11, weight: .medium))
                 }
-                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 5)
+                .background(Color.accentColor.opacity(0.1))
+                .cornerRadius(6)
             }
+            .buttonStyle(.plain)
             HStack(spacing: 6) {
                 Image(systemName: "keyboard")
                     .font(.system(size: 10))

@@ -6,27 +6,36 @@
 	<dict>
 		<key>Resources/AppIcon.icns</key>
 		<data>
-		CpkLguRSoa2F5nyl5V/5YF7vnOo=
+		V3+UjHENW2y3MXD4FKDlGAGPhsU=
 		</data>
 		<key>Resources/Assets.car</key>
 		<data>
-		OjvaQDhDfhCOjzAU1iNsinII+/Y=
+		jLOH62hNkHatqYEAYZnjqwcl/oc=
 		</data>
 	</dict>
 	<key>files2</key>
 	<dict>
+		<key>Frameworks/Sparkle.framework</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			9mHbEMOoof3TRp6RiMCvUmwqMXw=
+			</data>
+			<key>requirement</key>
+			<string>identifier "org.sparkle-project.Sparkle" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = BN55DYU669</string>
+		</dict>
 		<key>Resources/AppIcon.icns</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			79P2RS5HPV+0GH5pDFisBwGciXn6nSzNb+DLyH5zJi0=
+			fyqZrO40nybYDVqw1bJcdb6TcrNfVawek9LwAfbj7mo=
 			</data>
 		</dict>
 		<key>Resources/Assets.car</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			CrINOxRhMcMsI1povpvYEafZI1Lg5trQvgoDH0Cu0cM=
+			JQZlpjLL3dCKhsGEd/waKTscFFW5Qv5b/I3ZjHGeos8=
 			</data>
 		</dict>
 	</dict>

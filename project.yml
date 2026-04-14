@@ -5,6 +5,21 @@ options:
     macOS: "14.0"
   xcodeVersion: "15"
 
+schemes:
+  catch-catch:
+    build:
+      targets:
+        catch-catch: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
+
 settings:
   base:
     SWIFT_VERSION: "5.9"
@@ -20,6 +35,9 @@ targets:
       - path: catch-catch
         excludes:
           - "**/*.md"
+    dependencies:
+      - package: Sparkle
+        product: Sparkle
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.team.catch-catch

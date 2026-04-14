@@ -254,7 +254,6 @@ class AppCoordinator: ObservableObject {
         startSleepTimer()
         observeScreenChanges()
         PermissionAlert.showIfNeeded()
-        updateChecker.check()
     }
 
     // MARK: - Screen change detection

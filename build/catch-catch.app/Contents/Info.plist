@@ -17,13 +17,13 @@
 	<key>CFBundleName</key>
 	<string>catch-catch</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.0.11</string>
+	<string>0.0.12</string>
 	<key>CFBundleSupportedPlatforms</key>
 	<array>
 		<string>MacOSX</string>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>11</string>
+	<string>12</string>
 	<key>DTCompiler</key>
 	<string>com.apple.compilers.llvm.clang.1_0</string>
 	<key>DTPlatformBuild</key>
@@ -46,5 +46,11 @@
 	<false/>
 	<key>NSInputMonitoringUsageDescription</key>
 	<string>catch-catch needs to monitor keyboard input to animate the cat when you type.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/HongChaeMin/catch-catch/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>Pgsvbs0/PZYFoiKje+iJ1QBAlkcpI8AKwina15/6v80=</string>
 </dict>
 </plist>
