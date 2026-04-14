@@ -519,7 +519,7 @@ class AppCoordinator: ObservableObject {
             roomState.removePeer(userId: userId)
         case .stateUpdate(let userId, let x, let y, let isActive, let combo, let sleeping):
             guard userId != localCat.userId else { return }
-            if localCat.syncPosition {
+            if localCat.syncPosition, let x, let y {
                 roomState.updatePeerState(userId: userId, x: x, y: y, isActive: isActive)
             } else {
                 roomState.updatePeerActive(userId: userId, isActive: isActive)

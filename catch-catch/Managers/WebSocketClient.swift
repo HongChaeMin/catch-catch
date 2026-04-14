@@ -6,7 +6,7 @@ enum ServerMessage {
     case joined(users: [JoinedUser])
     case userJoined(userId: String, name: String, theme: String)
     case userLeft(userId: String)
-    case stateUpdate(userId: String, x: Double, y: Double, isActive: Bool, combo: Int, sleeping: Bool)
+    case stateUpdate(userId: String, x: Double?, y: Double?, isActive: Bool, combo: Int, sleeping: Bool)
     case renamed(userId: String, name: String)
     case themeChanged(userId: String, theme: String)
     case chat(userId: String, name: String, text: String)
@@ -133,8 +133,8 @@ class WebSocketClient: NSObject, URLSessionWebSocketDelegate {
             if let userId = json["userId"] as? String {
                 onMessage?(.stateUpdate(
                     userId: userId,
-                    x: json["x"] as? Double ?? 0.5,
-                    y: json["y"] as? Double ?? 0.5,
+                    x: json["x"] as? Double,
+                    y: json["y"] as? Double,
                     isActive: json["active"] as? Bool ?? false,
                     combo: json["combo"] as? Int ?? 0,
                     sleeping: json["sleeping"] as? Bool ?? false
